@@ -600,12 +600,35 @@ Each phase lists: Goal, Depends on, Scope, DB changes, Definition of Done, Statu
 - `.gitignore`, root `README.md`
 **DB changes:** none
 **Definition of Done:**
-- [ ] `pnpm install` works from repo root
-- [ ] `pnpm -F api dev` boots an empty Express server
-- [ ] `pnpm -F admin-web dev` boots an empty Vite app
-- [ ] CI workflow runs and passes on an empty PR
-- [ ] Env var validation throws a clear error if a required var is missing
-**Status:** Not started
+- [x] `pnpm install` works from repo root — verified with both `pnpm install` and
+  `pnpm install --frozen-lockfile` (the exact command CI uses), both exit 0.
+- [x] `pnpm -F api dev` boots an empty Express server — verified: booted the real
+  `tsx watch src/server.ts` process, then `curl http://localhost:4000/api/v1/health`
+  returned `{"success":true,"data":{"status":"ok","uptimeSeconds":...},"message":"API is healthy"}`,
+  and an unknown route returned the standard 404 error envelope.
+- [x] `pnpm -F admin-web dev` boots an empty Vite app — verified: booted the real `vite` dev
+  server, then rendered the page in headless Chrome (`--dump-dom`) and confirmed the actual
+  React output (`<h1>Gym Management — Admin</h1>...`) appears in the DOM, not just that Vite
+  serves static HTML.
+- [ ] CI workflow runs and passes on an empty PR — **not verified**. This repo has no GitHub
+  remote yet, so no real GitHub Actions run could be triggered. What *was* verified: every
+  individual step the workflow runs (`pnpm install --frozen-lockfile`, `pnpm --filter="./apps/*" run lint`,
+  `... run typecheck`, `... run test`) was executed locally, in that order, and all passed. Leaving
+  this box unchecked on purpose until an actual PR run on GitHub confirms it — check this once
+  the repo is pushed and a PR is opened.
+- [x] Env var validation throws a clear error if a required var is missing — verified for both
+  apps, at the actual runtime layer (not just unit tests):
+  - `apps/api`: ran the real `tsx src/server.ts` process with `PORT` removed from `.env` → process
+    crashed immediately (exit code 1) with `Error: Invalid or missing environment variables: - PORT: ...`,
+    before ever calling `app.listen`.
+  - `apps/admin-web`: ran the real `vite` dev server with `VITE_API_URL` removed from `.env`,
+    loaded the page in headless Chrome → browser console showed
+    `Uncaught Error: Invalid or missing environment variables: ...` and `<div id="root">` stayed
+    empty (React never rendered), confirming the fail-fast check actually runs before app boot,
+    not just in an isolated unit test.
+  - Both apps also have unit tests (`env.test.ts`) codifying this behavior for regression safety.
+
+**Status:** Done (except the CI-on-a-real-PR box — see above; revisit once this repo has a remote)
 
 ### Phase 1 — Backend foundation + core modules
 **Depends on:** Phase 0
