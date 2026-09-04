@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.turbo/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Testing / coverage
+coverage/
+
+# Vite
+apps/admin-web/dist/
+apps/admin-web/.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma (generated client) - ignored ahead of Phase 1
+apps/api/src/generated/
+
+# Flutter (added Phase 13+)
+apps/member-app/build/
+apps/member-app/.dart_tool/

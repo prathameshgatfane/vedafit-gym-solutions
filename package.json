@@ -1,0 +1,19 @@
+{
+  "name": "gym-management-platform",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "dev:api": "pnpm --filter api dev",
+    "dev:admin-web": "pnpm --filter admin-web dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
