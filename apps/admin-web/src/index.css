@@ -1,3 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tailwind + the brand palette (docs/architecture/DEVELOPMENT_PLAN.md 1.14) are registered as of
+   Phase 1, but not yet applied to any component — Phase 3 does the actual login/layout styling. */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;

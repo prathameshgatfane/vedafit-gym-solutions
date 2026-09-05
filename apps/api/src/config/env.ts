@@ -17,6 +17,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive(),
   // Required: which origin(s) the admin-web app is served from, for CORS.
   CORS_ORIGIN: z.string().min(1, "CORS_ORIGIN must not be empty"),
+  // Required: MySQL connection string. Also read directly by Prisma via its own env lookup,
+  // but we validate it here too so a missing/malformed value fails fast with our error format
+  // instead of a raw Prisma connector error deep in the first query.
+  DATABASE_URL: z
+    .string()
+    .min(1, "DATABASE_URL must not be empty")
+    .regex(/^mysql:\/\//, "DATABASE_URL must be a mysql:// connection string"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),

@@ -160,6 +160,25 @@ Minimal GitHub Actions workflow from **Phase 0**: on push/PR, run lint + typeche
 Each app validates its own env vars at startup via a zod-parsed `env.ts` (fail fast with a clear
 error instead of undefined-variable bugs at runtime). `.env.example` kept in sync per app.
 
+### 1.14 Brand color palette
+These are **estimated from a visual reference**, not sampled with an eyedropper — treat as
+directionally correct, not pixel-final. Adjust later once exact values are available; when that
+happens, only the Tailwind theme (Section below) needs to change, since no component hardcodes hex
+values.
+
+- **Primary background (dark):** `#000000` — Black
+- **Secondary dark surface:** `#1F1F1F` — Black 88%
+- **Primary accent (brand green):** `#C9FF1F` — Fit Green
+- **Muted/tinted accent:** `#E9FFA5` — Fit Green 40%
+- **Light surface/text-on-dark:** `#FEF9F5` — White
+
+Wired into `apps/admin-web`'s Tailwind config as named theme colors (`brand.black`,
+`brand.black-88`, `brand.green`, `brand.green-muted`, `brand.white`) — never hardcoded as raw hex
+in components — so the palette can be corrected in one place later without touching any component.
+This is registered now (Phase 1) but **not applied to any UI yet** — Phase 3 (login screen/layout)
+is the first phase that actually styles anything with it. Same "config now, features later" pattern
+as the rest of Phase 0/1.
+
 ---
 
 ## 2. Repository Structure (final)
@@ -645,13 +664,81 @@ Organization/Branch/User/Role/Permission modules — no auth yet, just CRUD + sc
 - Vitest + Supertest set up, first tests written against these modules
 **DB changes:** full Phase 1 schema (Section 3) migrated
 **Definition of Done:**
-- [ ] `pnpm prisma migrate dev` runs clean from empty DB
-- [ ] Seed script creates one org + branch + OWNER user + full permission catalog + role matrix
-- [ ] CRUD endpoints for org/branch/user/role/permission smoke-tested via curl/Postman
-- [ ] Generated IDs are lowercase ULIDs, confirmed via a test
-- [ ] Duplicate-phone/email race test proves service-layer transaction check works (1.3)
-- [ ] Unit/integration tests passing in CI
-**Status:** Not started
+- [x] `pnpm prisma migrate dev` runs clean from empty DB — verified: ran
+  `pnpm exec prisma migrate dev --name init` against a fresh `gym_dev` database, applied cleanly
+  (17 tables created, incl. `_prisma_migrations`). A second migration
+  (`char_columns_binary_collation`) was required and applied on top — see "Deviations" below.
+  Also ran `prisma migrate deploy` against a second database (`gym_test`) to confirm both
+  migrations replay cleanly on an independent empty DB, not just the one they were authored
+  against.
+- [x] Seed script creates one org + branch + OWNER user + full permission catalog + role
+  matrix — verified by running `pnpm exec prisma db seed` and then querying `gym_dev` directly
+  with the `mysql` CLI (not just trusting the script's own log output):
+  - `organizations`: 1 row (`demo-gym`, status `ACTIVE`)
+  - `branches`: 1 row (`Main Branch`, linked to the org above)
+  - `permissions`: 26 rows (full Section 4.1 catalog)
+  - `roles` × `role_permissions` per-org matrix, permission counts per role verified against
+    Section 4.2's spec exactly: OWNER 26, ADMIN 24 (all minus `organizations.update` +
+    `roles.manage`), MANAGER 16, RECEPTIONIST 7, ACCOUNTANT 7, TRAINER 2
+  - `users`: 1 row (`owner@demo-gym.test`, role `OWNER`, `passwordHash` length 60 — a real
+    bcrypt hash, not plaintext)
+  - Re-ran the seed a second time and re-checked row counts — identical (1/1/26/6/1) — confirming
+    it's idempotent, not additive on re-run.
+- [x] CRUD endpoints for org/branch/user/role/permission smoke-tested via curl — verified: booted
+  the real `tsx watch src/server.ts` process against `gym_dev` and, for every one of the 5
+  modules, exercised create → list → get-by-id → update via real `curl` requests (not just unit
+  tests), including negative cases: duplicate org slug (409), duplicate role name (409),
+  duplicate user email (409), unknown permission key on role create (400), 404 after a user
+  soft-delete, and a global 404 for the intentionally-nonexistent `POST /permissions` (no write
+  endpoint on that module by design — it's a seeded catalog). Cleaned up the smoke-test org
+  afterward so `gym_dev` is left with only clean seed data.
+- [x] Generated IDs are lowercase ULIDs, confirmed via a test — `src/lib/id.test.ts` asserts
+  `generateId()` output is exactly 26 chars, equals its own `.toLowerCase()`, matches the
+  Crockford-base32 pattern, and that 1000 calls produce 1000 unique values. Every module test
+  additionally asserts the same pattern on real API-created IDs (e.g.
+  `organization.test.ts`'s "happy path" test).
+- [x] Duplicate-phone/email race test proves service-layer transaction check works (1.3) — see
+  "Deviations" below for an important implementation detail (row-locking) this uncovered.
+  `user.test.ts`'s race-condition test fires two truly concurrent (`Promise.all`) `POST`s with
+  the same org+email and asserts exactly one `201` / one `409 DUPLICATE_EMAIL` — not a soft "at
+  least one succeeds" check. Re-ran this specific test 5 times in isolation
+  (`vitest run -t "race condition"`) to rule out flakiness: 5/5 passed. Also confirmed via a
+  direct DB query inside the test that exactly one row exists afterward, not just that the HTTP
+  responses looked right. Member/phone gets the equivalent test when the Member module is built
+  in Phase 4 (Member doesn't exist yet in Phase 1's scope).
+- [x] Unit/integration tests passing in CI — not "CI" literally yet (no GitHub remote, same
+  caveat as Phase 0), but ran `pnpm --filter api run lint`, `run typecheck`, and `run test`
+  (the exact commands `ci.yml` runs) locally: all pass. Full suite: **39/39 tests passing**
+  across 8 test files (health, env, id, organizations, branches, roles, permissions, users).
+
+**Deviations from the plan as originally written (see Section 9 for the dated log entry):**
+- **Collation:** Prisma's MySQL migrator created every `@db.Char(26)` column with the connector's
+  default `utf8mb4_unicode_ci` collation, not `utf8mb4_bin` as Locked Decision 1.2 requires
+  (schema.prisma has no collation attribute to set this directly). Fixed with a hand-written
+  second migration (`char_columns_binary_collation`) that `ALTER TABLE ... MODIFY`s all 44
+  id/FK columns across all 16 affected tables to `utf8mb4_bin`, leaving every other column
+  untouched. Verified after the fact via `information_schema.COLUMNS`: all 44 columns confirmed
+  `utf8mb4_bin`; foreign key count unchanged (21) before/after, confirming no relations broke.
+- **Row-locking on user creation:** a plain "check-then-insert inside a transaction" (Option 1's
+  literal description) does not actually close the race under MySQL's default REPEATABLE READ
+  isolation — two truly concurrent transactions can both see "no existing row" and both insert.
+  `userService.create`/`.update` now also take an InnoDB `SELECT ... FOR UPDATE` lock on the
+  parent `Organization` row for the duration of the transaction, serializing concurrent
+  writes *for that organization only* (cheap — user creation is low-frequency, admin-driven
+  traffic). This is what makes the race test above deterministic rather than flaky. Still no
+  DB-level `@@unique` — this is a concurrency-control detail on top of Option 1, not a reversal
+  of it. The same pattern should be reused for `Member.phone` in Phase 4.
+- **Local MySQL, no Docker in this sandbox:** the sandbox has no Docker and the system's MySQL
+  service is AppArmor-confined (can't use a custom datadir under `$HOME`) with no known root
+  password. Added `infrastructure/docker/docker-compose.yml` as the primary/normal path for any
+  real machine, and `apps/api/scripts/dev-mysql-sandbox.sh` as a no-Docker fallback that runs an
+  unprivileged `mysqld` under `/tmp` (allowed by the AppArmor profile) on the same port (3307),
+  so `DATABASE_URL` is identical either way. See README.md.
+- **Table naming:** every model has `@@map("snake_case_plural")` (e.g. `Organization` →
+  `organizations`) for conventional MySQL table names — a cosmetic addition, not a schema
+  decision reversal.
+
+**Status:** Done
 
 ### Phase 2 — Auth, RBAC enforcement, tenant middleware
 **Depends on:** Phase 1
@@ -870,5 +957,22 @@ intentionally not speculated further here, per "don't build infra before you nee
 
 ## 9. Decision Changes Log
 
-(Empty — add dated entries here if a locked decision is revisited later, e.g.:
-`2026-XX-XX: switched member.phone enforcement from app-layer to generated-column approach because ...`)
+- **2026-09-05:** Locked Decision 1.2 (ULID, `utf8mb4_bin` collation) is implemented via a
+  second, hand-written migration (`char_columns_binary_collation`) rather than a schema.prisma
+  attribute, because Prisma has no collation attribute for MySQL columns and its migrator
+  defaults to `utf8mb4_unicode_ci`. No change to the decision itself, just to how it's applied.
+  See Phase 1's "Deviations" note for details.
+- **2026-09-05:** Locked Decision 1.3 (app-layer uniqueness enforcement) is strengthened with an
+  InnoDB `SELECT ... FOR UPDATE` lock on the parent `Organization` row for the duration of the
+  create/update transaction, in `userService`. Plain "check inside a transaction" (Option 1 as
+  literally described) does not close the race under MySQL's default REPEATABLE READ isolation —
+  two concurrent transactions can both see "no existing row." The row lock serializes
+  create/update calls per-organization, which is what the Phase 1 race-condition test actually
+  needed to be deterministic instead of flaky. No DB-level `@@unique` was added — this is a
+  concurrency-control detail layered on top of Option 1, not a reversal of it. Apply the same
+  pattern to `memberService` in Phase 4.
+- **2026-09-05:** Added `apps/api/scripts/dev-mysql-sandbox.sh` and
+  `infrastructure/docker/docker-compose.yml` as two equivalent ways to get a local MySQL for
+  development — not present in the original plan, added because this sandbox has neither Docker
+  nor usable root MySQL credentials. Not a decision reversal, just local dev tooling. See
+  README.md "Local database".

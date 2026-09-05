@@ -1,0 +1,19 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gym-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: gym_dev
+      MYSQL_USER: gym_app
+      MYSQL_PASSWORD: gym_app_dev_pw
+      MYSQL_ROOT_PASSWORD: root_dev_pw
+    ports:
+      - "3307:3306"
+    volumes:
+      - gym-mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
+
+volumes:
+  gym-mysql-data:

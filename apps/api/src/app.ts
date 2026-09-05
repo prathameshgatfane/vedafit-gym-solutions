@@ -1,10 +1,13 @@
 import cors from "cors";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express, { type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { env } from "./config/env";
 import { logger } from "./lib/logger";
+import { errorMiddleware } from "./middleware/error.middleware";
+import { organizationRouter } from "./modules/organizations/organization.routes";
+import { permissionRouter } from "./modules/permissions/permission.routes";
 
 /**
  * Builds the Express app. Kept separate from server.ts (which actually binds a port) so
@@ -37,7 +40,11 @@ export function createApp() {
     });
   });
 
-  // 404 for anything else — real feature routes are mounted starting Phase 1.
+  // Phase 1 feature modules — no auth/tenant middleware yet (that's Phase 2).
+  app.use("/api/v1/organizations", organizationRouter);
+  app.use("/api/v1/permissions", permissionRouter);
+
+  // 404 for anything else.
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       success: false,
@@ -45,15 +52,9 @@ export function createApp() {
     });
   });
 
-  // Minimal fallback error handler. A dedicated error.middleware.ts with the full
-  // ErrorCode registry lands in Phase 1.
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error({ err }, "Unhandled error");
-    res.status(500).json({
-      success: false,
-      error: { code: "INTERNAL_ERROR", message: "Something went wrong" },
-    });
-  });
+  // Centralized error handler (lib/error-codes.ts + middleware/error.middleware.ts) — must be
+  // registered last.
+  app.use(errorMiddleware);
 
   return app;
 }

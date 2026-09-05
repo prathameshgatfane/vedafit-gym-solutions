@@ -1,0 +1,348 @@
+// Gym Management Platform — Prisma schema.
+// Source of truth for design decisions: docs/architecture/DEVELOPMENT_PLAN.md (Sections 1 & 3).
+// Do not add `@@unique` on a column that coexists with `deletedAt` without re-reading
+// Locked Decision 1.3 first.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum MembershipPlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  FROZEN
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  REFUNDED
+  PENDING
+}
+
+enum InvoiceStatus {
+  DRAFT
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+// ── Core tenancy ─────────────────────────────────────────
+model Organization {
+  id        String             @id @db.Char(26)
+  name      String
+  slug      String             @unique
+  email     String
+  phone     String?
+  status    OrganizationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  branches Branch[]
+  users    User[]
+  roles    Role[]
+  members  Member[]
+  plans    MembershipPlan[]
+
+  @@map("organizations")
+}
+
+model Branch {
+  id             String       @id @db.Char(26)
+  organizationId String       @db.Char(26)
+  name           String
+  address        String?
+  phone          String?
+  status         BranchStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  members      Member[]
+  memberships  Membership[]
+  attendances  Attendance[]
+
+  @@index([organizationId])
+  @@map("branches")
+}
+
+// ── Staff / RBAC ─────────────────────────────────────────
+model User {
+  id             String     @id @db.Char(26)
+  organizationId String     @db.Char(26)
+  branchId       String?    @db.Char(26) // nullable: OWNER/ADMIN/ACCOUNTANT are usually org-wide
+  name           String
+  email          String
+  passwordHash   String
+  roleId         String     @db.Char(26)
+  status         UserStatus @default(ACTIVE)
+  deletedAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization        Organization          @relation(fields: [organizationId], references: [id])
+  role                 Role                  @relation(fields: [roleId], references: [id])
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
+
+  @@index([organizationId, email]) // NOT unique — see Locked Decisions 1.3
+  @@map("users")
+}
+
+model Role {
+  id             String   @id @db.Char(26)
+  organizationId String   @db.Char(26)
+  name           String   // OWNER/ADMIN/MANAGER/RECEPTIONIST/TRAINER/ACCOUNTANT, or custom later
+  createdAt      DateTime @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  users        User[]
+  permissions  RolePermission[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @db.Char(26)
+  key         String @unique // e.g. "members.create"
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @db.Char(26)
+  permissionId String @db.Char(26)
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ── Members & memberships ────────────────────────────────
+model Member {
+  id             String       @id @db.Char(26)
+  organizationId String       @db.Char(26)
+  branchId       String       @db.Char(26)
+  firstName      String
+  lastName       String
+  phone          String
+  email          String?
+  dateOfBirth    DateTime?
+  status         MemberStatus @default(ACTIVE)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  branch       Branch           @relation(fields: [branchId], references: [id])
+  memberships  Membership[]
+  payments     Payment[]
+  invoices     Invoice[]
+  attendances  Attendance[]
+  documents    MemberDocument[]
+
+  @@index([organizationId, phone]) // NOT unique — see Locked Decisions 1.3
+  @@map("members")
+}
+
+model MembershipPlan {
+  id             String               @id @db.Char(26)
+  organizationId String               @db.Char(26)
+  name           String
+  price          Decimal              @db.Decimal(10, 2)
+  durationDays   Int
+  status         MembershipPlanStatus @default(ACTIVE)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  memberships  Membership[]
+
+  @@map("membership_plans")
+}
+
+model Membership {
+  id                     String           @id @db.Char(26)
+  organizationId         String           @db.Char(26)
+  branchId               String           @db.Char(26)
+  memberId               String           @db.Char(26)
+  planId                 String           @db.Char(26)
+  priceAtPurchase        Decimal          @db.Decimal(10, 2) // snapshot — see Section 3 rationale
+  durationDaysAtPurchase Int                                  // snapshot
+  startDate              DateTime
+  endDate                DateTime
+  status                 MembershipStatus @default(ACTIVE)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  branch   Branch         @relation(fields: [branchId], references: [id])
+  member   Member         @relation(fields: [memberId], references: [id])
+  plan     MembershipPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([organizationId, endDate]) // expiry queries
+  @@map("memberships")
+}
+
+// ── Money ─────────────────────────────────────────────────
+// payment & invoice: no deletedAt, no free-form updatedAt mutation of amounts.
+// Corrections happen via new rows (refund/reversal) + AuditLog, per spec.
+model Payment {
+  id             String        @id @db.Char(26)
+  organizationId String        @db.Char(26)
+  memberId       String        @db.Char(26)
+  membershipId   String?       @db.Char(26)
+  invoiceId      String?       @db.Char(26) // links a payment to the invoice it's paying down
+  amount         Decimal       @db.Decimal(10, 2)
+  method         PaymentMethod
+  status         PaymentStatus @default(SUCCESS)
+  paidAt         DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+
+  member     Member      @relation(fields: [memberId], references: [id])
+  membership Membership? @relation(fields: [membershipId], references: [id])
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+model Invoice {
+  id             String        @id @db.Char(26)
+  organizationId String        @db.Char(26)
+  memberId       String        @db.Char(26)
+  invoiceNumber  String        // human-readable, e.g. INV-2026-000123 — see Phase 6 notes
+  amountTotal    Decimal       @db.Decimal(10, 2)
+  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
+  amountPending  Decimal       @db.Decimal(10, 2)
+  status         InvoiceStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  member   Member    @relation(fields: [memberId], references: [id])
+  payments Payment[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@map("invoices")
+}
+
+model Attendance {
+  id             String   @id @db.Char(26)
+  organizationId String   @db.Char(26)
+  branchId       String   @db.Char(26)
+  memberId       String   @db.Char(26)
+  checkedInAt    DateTime @default(now())
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId, checkedInAt])
+  @@map("attendances")
+}
+
+model MemberDocument {
+  id         String   @id @db.Char(26)
+  memberId   String   @db.Char(26)
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int
+  uploadedBy String   @db.Char(26)
+  createdAt  DateTime @default(now())
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@map("member_documents")
+}
+
+// ── Auth support tables ──────────────────────────────────
+model RefreshToken {
+  id        String    @id @db.Char(26)
+  userId    String    @db.Char(26)
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @db.Char(26)
+  userId    String    @db.Char(26)
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ── Audit ─────────────────────────────────────────────────
+model AuditLog {
+  id             String   @id @db.Char(26)
+  organizationId String   @db.Char(26)
+  actorUserId    String?  @db.Char(26)
+  entityType     String   // e.g. "Payment", "Membership"
+  entityId       String
+  action         String   // e.g. "REFUND", "STATUS_CHANGE"
+  beforeJson     Json?
+  afterJson      Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, entityType, entityId])
+  @@map("audit_logs")
+}

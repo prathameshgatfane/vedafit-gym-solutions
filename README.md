@@ -44,6 +44,31 @@ cp apps/api/.env.example apps/api/.env
 cp apps/admin-web/.env.example apps/admin-web/.env
 ```
 
+### Local database (MySQL)
+
+Preferred: Docker.
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml up -d
+```
+
+If Docker isn't available (e.g. this sandbox — no Docker, and the system MySQL is AppArmor-confined
+and has no known root credentials), use the no-Docker fallback instead. It runs an unprivileged
+`mysqld` under `/tmp` on the same port (3307), so `DATABASE_URL` is identical either way:
+
+```bash
+apps/api/scripts/dev-mysql-sandbox.sh start   # init + start, creates gym_dev + gym_test
+apps/api/scripts/dev-mysql-sandbox.sh status
+apps/api/scripts/dev-mysql-sandbox.sh stop
+```
+
+Then run migrations/seed:
+
+```bash
+pnpm --filter api prisma migrate dev
+pnpm --filter api prisma db seed
+```
+
 ## Common scripts (run from repo root)
 
 ```bash
