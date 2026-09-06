@@ -4,6 +4,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["src", "test", "prisma"],
+  "include": ["src", "test", "prisma", "scripts"],
   "exclude": ["node_modules", "dist"]
 }

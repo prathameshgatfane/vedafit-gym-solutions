@@ -304,9 +304,19 @@ model MemberDocument {
 
 // ── Auth support tables ──────────────────────────────────
 model RefreshToken {
-  id        String    @id @db.Char(26)
-  userId    String    @db.Char(26)
-  tokenHash String
+  id String @id @db.Char(26)
+
+  userId String @db.Char(26)
+
+  // Identifies one login session's rotation chain. Every rotation issues a new row carrying the
+  // same familyId, so reuse of an already-rotated token can revoke the entire chain in one
+  // statement rather than just the presented token. See Section 9 (2026-09-06).
+  familyId String @db.Char(26)
+
+  // SHA-256 hex of the opaque token. The raw token is only ever in the client's cookie —
+  // a DB dump therefore yields nothing usable.
+  tokenHash String @unique @db.Char(64)
+
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
@@ -314,13 +324,14 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([familyId])
   @@map("refresh_tokens")
 }
 
 model PasswordResetToken {
   id        String    @id @db.Char(26)
   userId    String    @db.Char(26)
-  tokenHash String
+  tokenHash String    @unique @db.Char(64)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())

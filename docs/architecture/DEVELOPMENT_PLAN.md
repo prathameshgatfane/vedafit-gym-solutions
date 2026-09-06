@@ -444,6 +444,9 @@ model MemberDocument {
 }
 
 // ── Auth support tables ──────────────────────────────────
+// NOTE: both token models below were amended in Phase 2 — `familyId` added to RefreshToken, and
+// `tokenHash` narrowed to Char(64) + @unique on both. Left as originally written here on purpose;
+// see Section 9 (2026-09-06) for why, and apps/api/prisma/schema.prisma for the current shape.
 model RefreshToken {
   id        String    @id @db.Char(26)
   userId    String
@@ -754,15 +757,62 @@ middleware that makes `organizationId`/`branchId` trustworthy everywhere downstr
 - Login rate limiting / lockout after N failed attempts
 - `tenant.middleware.ts`: derives org/branch from JWT, rejects any client-supplied org/branch claim
 - `permission.middleware.ts`: checks JWT's role → permission before handler runs
-**DB changes:** none beyond Phase 1 (RefreshToken/PasswordResetToken already exist)
+**DB changes:** one migration beyond Phase 1 — `refresh_tokens.familyId`, plus `tokenHash`
+narrowed to `CHAR(64)` + `UNIQUE` on both token tables. The original "none beyond Phase 1" estimate
+missed that family-wide revocation needs a column to group a rotation chain by. See Section 9
+(2026-09-06) and the Deviations note below.
 **Definition of Done:**
-- [ ] Login returns access token + sets httpOnly refresh cookie
-- [ ] `/auth/me` returns `{ user, organization, branches }`
-- [ ] Refresh rotation + reuse detection covered by a test
-- [ ] Cross-tenant test: org A's token cannot read/write org B's data (any module)
-- [ ] Permission-denied test: RECEPTIONIST role blocked from an ADMIN-only route
-- [ ] Rate limiting confirmed on login endpoint
-**Status:** Not started
+- [x] Login returns access token + sets httpOnly refresh cookie — verified against a live server,
+  not just supertest. `curl -D -` on `POST /api/v1/auth/login` with the seeded OWNER returned
+  `HTTP/1.1 200` and the header
+  `Set-Cookie: refresh_token=dMVkpDMJ...; Path=/api/v1/auth; Expires=Tue, 06 Oct 2026 11:46:00 GMT; HttpOnly; SameSite=Lax`
+  alongside `{"accessToken":"eyJ...","tokenType":"Bearer","expiresIn":900}`. The decoded JWT
+  payload was `{userId, organizationId, branchId: null, roleId, type:"access", iat, exp}` with
+  `exp - iat = 900`. Confirmed the raw cookie value appears nowhere in `refresh_tokens`
+  (`SELECT COUNT(*) WHERE tokenHash = '<raw>'` → 0) and that `sha256(raw)` equals the stored
+  `tokenHash` exactly.
+- [x] `/auth/me` returns `{ user, organization, branches }` — verified against the real seeded
+  `owner@demo-gym.test`. Top-level `data` keys were exactly `['branches','organization','user']`;
+  `user.role.name` was `OWNER` with all 26 catalog permission keys; `organization.slug` was
+  `demo-gym`; `branches` contained the seeded `Main Branch`. No `passwordHash` in the payload.
+- [x] Refresh rotation + reuse detection covered by a test — and re-verified live with DB
+  inspection at each step. After rotating R1→R2 the family held `[REVOKED, LIVE]`. Replaying the
+  spent R1 returned 401 `TOKEN_REUSE_DETECTED` and left the family at `[REVOKED, REVOKED]` with
+  `COUNT(*) WHERE revokedAt IS NULL` = 0 — R2 was revoked at the replay timestamp despite never
+  having been presented, which is the part that distinguishes family revocation from simply
+  rejecting the replayed token. Presenting the legitimate R2 afterwards also returned
+  `TOKEN_REUSE_DETECTED`. A separate test confirms a *second* login (different family) survives,
+  so revocation is family-scoped rather than user-wide.
+- [x] Cross-tenant test: org A's token cannot read/write org B's data — exercised on **four**
+  modules, 12 method/path combinations (organizations GET+PATCH, branches GET/POST/GET-by-id,
+  users GET/POST/GET-by-id/DELETE, roles GET/POST/GET-by-id). All 12 returned 403 `ORG_MISMATCH`,
+  live and in supertest. Post-run row counts in org B were unchanged. Also verified that an
+  `organizationId` smuggled in the request **body** or **query string** — on the caller's own,
+  legitimate URL — is rejected with `ORG_MISMATCH`, while the identical request without the
+  smuggled claim returns 200.
+- [x] Permission-denied test: RECEPTIONIST role blocked from an ADMIN-only route — a real
+  RECEPTIONIST login (whose `/auth/me` showed exactly the 7 keys the Section 4.2 matrix grants)
+  got 403 `PERMISSION_DENIED` with message `This role lacks the required permission: users.manage`
+  on both `POST` and `GET /organizations/:id/users`, and on `POST /branches` for
+  `branches.manage`. The user it tried to create does not exist in the DB. The same `POST /users`
+  as OWNER returned 201, proving the route works and it is the permission that blocked it.
+- [x] Rate limiting confirmed on login endpoint — by actually hammering it, not by reading the
+  middleware. Eight wrong-password requests to one address produced
+  `401, 401, 401, 401, 401, 429, 429, 429` with `RateLimit-Remaining` counting `4→3→2→1→0`. A
+  ninth request with the **correct** password still returned 429 (the limiter runs ahead of the
+  handler), while a different account from the same IP logged in with 200 in the same window.
+
+**Deviations (see Section 9 for the decision-log entries):**
+- `refresh_tokens.familyId` added (the "no DB changes" estimate was wrong).
+- `POST /api/v1/organizations` and `GET /api/v1/organizations` (list-all) removed from the HTTP
+  API; org creation stays a seed-script/Phase-15 concern.
+- Account lockout is implemented as IP+email rate limiting with an in-memory store, not a
+  persisted per-account counter.
+- Login accepts an optional `organizationSlug`, because email is unique per-org, not globally.
+- `forgot-password` returns the reset token outside production, since there's no mail transport
+  until Phase 12.
+
+**Status:** Done
 
 ### Phase 3 — Admin: login screen, layout, shell
 **Depends on:** Phase 2
@@ -971,6 +1021,58 @@ intentionally not speculated further here, per "don't build infra before you nee
   needed to be deterministic instead of flaky. No DB-level `@@unique` was added — this is a
   concurrency-control detail layered on top of Option 1, not a reversal of it. Apply the same
   pattern to `memberService` in Phase 4.
+- **2026-09-06:** Phase 2's "DB changes: none beyond Phase 1" was wrong. Revoking a whole token
+  *family* on reuse requires something to group a rotation chain by, and the Phase 1
+  `RefreshToken` model has no such column — only `userId`, which would make revocation user-wide
+  and log a user out of every device because one session leaked. Added a
+  `refresh_tokens.familyId CHAR(26)` column (+ index) in migration `refresh_token_family`; a fresh
+  login starts a new family and every rotation inherits it. The same migration narrows
+  `tokenHash` on both token tables to `CHAR(64)` (SHA-256 hex) with a `UNIQUE` index, so
+  lookup-by-hash is one index hit. `COLLATE utf8mb4_bin` is set explicitly, for the same reason as
+  the Phase 1 collation migration. No change to any locked decision — this is the schema Section 3
+  should have specified for the behaviour Phase 2 already required.
+- **2026-09-06:** Removed `POST /api/v1/organizations` and `GET /api/v1/organizations` (list-all)
+  from the HTTP API. Both were built in Phase 1 before auth existed, and neither survives contact
+  with Section 6: a list-all endpoint is cross-tenant by construction, and an unauthenticated
+  create endpoint lets anyone mint an organization. Since Locked Decision 1.7 already says orgs
+  are bootstrapped by the seed script until Phase 15, they had no legitimate caller.
+  `organizationService.create`/`list` are unchanged and still used by the seed script, the tests,
+  and (later) the Phase 15 super-admin layer. Consequence: an unknown organization id now returns
+  403 `ORG_MISMATCH` rather than 404 `ORGANIZATION_NOT_FOUND`, because the tenant guard rejects it
+  before any lookup happens — which is the better answer anyway, since the 404 was an existence
+  oracle for arbitrary org ids.
+- **2026-09-06:** "Lockout after N failed attempts" is implemented as rate limiting keyed on
+  **IP + submitted email** with `express-rate-limit`, not as a persisted per-account lockout
+  counter. Rationale: an IP-only counter locks out an entire gym whose staff share one NAT
+  address, and a persisted per-account counter is itself a denial-of-service vector (anyone who
+  knows an email can lock its owner out). Only *failed* attempts consume budget
+  (`skipSuccessfulRequests`), so normal use is never throttled. Known limit, accepted for now: the
+  default store is per-process memory, so counters reset on restart and are not shared across
+  instances. Swap in a Redis store in Phase 12, when Redis arrives for a feature that actually
+  needs it (Section 8 forbids introducing it earlier).
+- **2026-09-06:** `POST /auth/login` accepts an optional `organizationSlug`. Locked Decision 1.3
+  makes `email` unique per organization, not globally, so an email alone can legitimately match
+  users in several orgs. The endpoint verifies the password against every candidate: no match →
+  401, exactly one → logged in, more than one → 409 `AMBIGUOUS_LOGIN` listing the slugs to retry
+  with. This keeps the common case a plain email + password form instead of forcing a tenant
+  selector into the Phase 3 login screen.
+- **2026-09-06:** `POST /auth/forgot-password` returns the raw reset token in its response when
+  `NODE_ENV` is `development` or `test` (an explicit allowlist, not `!== "production"`). There is
+  no mail transport until Phase 12, and a reset flow that can't be exercised end-to-end is one
+  nobody discovers is broken. Delete this branch when Phase 12 wires real email.
+- **2026-09-06:** `tenant.middleware.ts` is applied twice on the branch routes — once at
+  `/:organizationId` on the parent router, and again at `/:branchId` inside `branchRouter`.
+  Express only populates the path params matched up to a middleware's own mount point, so the
+  parent-level guard cannot see a `:branchId` deeper in the path. Without the second application a
+  branch-scoped user could read a sibling branch; a test caught this and now covers it.
+- **2026-09-06:** `.github/workflows/ci.yml` gained a MySQL 8.0 service container (published on
+  3307, matching `docker-compose.yml`), a `prisma generate` step before typecheck, a
+  `prisma migrate deploy` step before the tests, and a guard step that fails the build if any
+  `CHAR` column in the test schema is not `utf8mb4_bin`. Before this, CI ran `pnpm test` with no
+  database at all — every Phase 1 API test would have failed on a real Actions run, and typecheck
+  would have failed on the missing generated Prisma Client. Service containers accept no
+  `command:`, so the server-level collation flags from `docker-compose.yml` are applied to the
+  database with an `ALTER DATABASE` step instead.
 - **2026-09-05:** Added `apps/api/scripts/dev-mysql-sandbox.sh` and
   `infrastructure/docker/docker-compose.yml` as two equivalent ways to get a local MySQL for
   development — not present in the original plan, added because this sandbox has neither Docker

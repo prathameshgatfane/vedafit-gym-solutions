@@ -29,11 +29,21 @@ export const ErrorCode = {
   MEMBER_NOT_FOUND: "MEMBER_NOT_FOUND",
   DUPLICATE_PHONE: "DUPLICATE_PHONE",
 
-  // Auth (Phase 2 — reserved now so error-codes.ts doesn't need a breaking rename later)
+  // Auth (Phase 2)
   INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
   TOKEN_EXPIRED: "TOKEN_EXPIRED",
   PERMISSION_DENIED: "PERMISSION_DENIED",
   ORG_MISMATCH: "ORG_MISMATCH",
+  BRANCH_MISMATCH: "BRANCH_MISMATCH",
+  UNAUTHENTICATED: "UNAUTHENTICATED",
+  INVALID_TOKEN: "INVALID_TOKEN",
+  /** A refresh token that was already rotated (or revoked) was presented again. */
+  TOKEN_REUSE_DETECTED: "TOKEN_REUSE_DETECTED",
+  ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE",
+  /** Same email exists in more than one org — the caller must say which one. */
+  AMBIGUOUS_LOGIN: "AMBIGUOUS_LOGIN",
+  INVALID_RESET_TOKEN: "INVALID_RESET_TOKEN",
+  RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

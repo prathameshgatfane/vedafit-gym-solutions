@@ -5,10 +5,38 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  # Must match apps/api/vitest.config.ts's default and the local sandbox
+  # (apps/api/scripts/dev-mysql-sandbox.sh) so `pnpm test` behaves identically everywhere.
+  DATABASE_URL: "mysql://gym_app:gym_app_dev_pw@127.0.0.1:3307/gym_test"
+  MYSQL_ROOT_PASSWORD: root_ci_pw
+
 jobs:
   lint-typecheck-test:
     name: Lint, typecheck & test (apps/*)
     runs-on: ubuntu-latest
+
+    services:
+      # Mirrors infrastructure/docker/docker-compose.yml: MySQL 8.0, published on 3307.
+      # NOTE: GitHub Actions service containers accept no `command:`, so the server-level
+      # charset/collation flags used in docker-compose are applied to the database itself
+      # in the "Force utf8mb4_bin collation" step below (Locked Decision 1.2).
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: gym_test
+          MYSQL_USER: gym_app
+          MYSQL_PASSWORD: gym_app_dev_pw
+          MYSQL_ROOT_PASSWORD: root_ci_pw
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+          --health-start-period=30s
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,6 +54,44 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # `mysql:8.0` is already pulled for the service container, so this reuses the cached
+      # image rather than depending on a mysql client being preinstalled on the runner.
+      - name: Force utf8mb4_bin collation and grant privileges
+        run: |
+          docker run --rm --network host mysql:8.0 \
+            mysql -h 127.0.0.1 -P 3307 -u root -p"$MYSQL_ROOT_PASSWORD" -e "
+              ALTER DATABASE gym_test CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+              GRANT ALL PRIVILEGES ON *.* TO 'gym_app'@'%';
+              FLUSH PRIVILEGES;
+            "
+
+      # Required before typecheck: the generated Prisma Client supplies the model types
+      # that apps/api/src depends on.
+      - name: Generate Prisma Client
+        run: pnpm --filter api exec prisma generate
+
+      - name: Apply migrations to test database
+        run: pnpm --filter api exec prisma migrate deploy
+
+      # Guards Locked Decision 1.2: every CHAR id/FK column must be utf8mb4_bin so ULID
+      # comparisons stay case-sensitive. Fails the build if a future migration regresses this.
+      - name: Verify CHAR columns are utf8mb4_bin
+        run: |
+          OFFENDERS=$(docker run --rm --network host mysql:8.0 \
+            mysql -h 127.0.0.1 -P 3307 -u root -p"$MYSQL_ROOT_PASSWORD" -N -B -e "
+              SELECT CONCAT(table_name, '.', column_name, ' = ', collation_name)
+              FROM information_schema.columns
+              WHERE table_schema = 'gym_test'
+                AND data_type = 'char'
+                AND collation_name <> 'utf8mb4_bin';
+            ")
+          if [ -n "$OFFENDERS" ]; then
+            echo "CHAR columns with the wrong collation:"
+            echo "$OFFENDERS"
+            exit 1
+          fi
+          echo "All CHAR columns are utf8mb4_bin."
 
       - name: Lint (apps/*)
         run: pnpm --filter="./apps/*" run lint

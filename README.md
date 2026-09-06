@@ -69,6 +69,19 @@ pnpm --filter api prisma migrate dev
 pnpm --filter api prisma db seed
 ```
 
+The seed prints the bootstrap OWNER credentials. To get a token:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@demo-gym.test","password":"ChangeMe123!"}'
+```
+
+Every route outside `/api/v1/auth/*` and `/api/v1/health` needs
+`Authorization: Bearer <accessToken>`. The refresh token is set as an httpOnly cookie scoped to
+`/api/v1/auth`, so `curl -c/-b` (or `fetch(..., { credentials: "include" })`) is enough to keep a
+session alive across `POST /api/v1/auth/refresh`.
+
 ## Common scripts (run from repo root)
 
 ```bash
@@ -77,7 +90,13 @@ pnpm typecheck    # typecheck all workspaces
 pnpm test         # test all workspaces
 ```
 
+Note: `pnpm test` for `apps/api` runs against a real MySQL database (`gym_test`), so one of the
+two options above must be running first.
+
 ## Current status
 
-Phase 0 (repo/tooling scaffold) — see [`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md)
-for exact status of every phase. Database/Prisma/feature modules are not implemented yet (Phase 1+).
+Phases 0–2 done: repo/tooling scaffold, the Prisma schema with the
+Organization/Branch/User/Role/Permission modules, and auth (login, refresh with rotation and
+reuse detection, logout, `/me`, password reset) with tenant and permission middleware enforced on
+every module route. See [`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md)
+for the exact status of every phase. The admin UI (Phase 3+) is still an empty shell.
