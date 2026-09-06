@@ -95,13 +95,14 @@ two options above must be running first.
 
 ## Current status
 
-Phases 0–3 done: repo/tooling scaffold, the Prisma schema with the
+Phases 0–4 done: repo/tooling scaffold, the Prisma schema with the
 Organization/Branch/User/Role/Permission modules, auth (login, refresh with rotation and
 reuse detection, logout, `/me`, password reset) with tenant and permission middleware enforced on
-every module route, and an admin UI that can log in and render an authenticated shell. See
-[`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md) for the exact
-status of every phase.
+every module route, an admin UI that can log in and render an authenticated shell, and full member
+CRUD — list with search/filter/sort/pagination, create, view, edit and archive — from both the API
+and the UI. See [`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md)
+for the exact status of every phase.
 
 To use the admin UI, run the API and `apps/admin-web` (`pnpm dev` in each) and sign in at
-http://localhost:5173 with the seeded credentials above. The dashboard behind it is intentionally
-empty — members, memberships and payments arrive in Phases 4-7.
+http://localhost:5173 with the seeded credentials above. Memberships, payments and attendance
+arrive in Phases 5-7.

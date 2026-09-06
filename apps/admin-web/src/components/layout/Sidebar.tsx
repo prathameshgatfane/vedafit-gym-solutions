@@ -12,7 +12,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", permission: null },
-  { to: "/members", label: "Members", permission: "members.view", comingSoon: true },
+  { to: "/members", label: "Members", permission: "members.view" },
   { to: "/memberships", label: "Memberships", permission: "memberships.create", comingSoon: true },
   { to: "/payments", label: "Payments", permission: "payments.view", comingSoon: true },
   { to: "/staff", label: "Staff", permission: "users.manage", comingSoon: true },
@@ -53,7 +53,9 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
-              end
+              // Only the dashboard needs an exact match; a section stays highlighted while you're
+              // anywhere inside it (e.g. /members/:id).
+              end={item.to === "/"}
               className={({ isActive }) =>
                 [
                   "rounded-md px-3 py-2 text-sm transition-colors",

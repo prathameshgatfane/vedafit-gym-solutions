@@ -21,6 +21,11 @@ export function renderWithProviders(
 ): RenderResult {
   const queryClient = createQueryClient();
 
+  // The real config retries a 5xx once with a backoff delay, which would push every
+  // error-state assertion past Testing Library's default timeout. Retry behaviour itself is
+  // covered in api-client.test.ts, where the request count is the actual subject.
+  queryClient.setDefaultOptions({ queries: { retry: false } });
+
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
@@ -41,7 +46,14 @@ export const testUser: SessionUser = {
   role: {
     id: "01k4h0test0role0000000001",
     name: "OWNER",
-    permissions: ["members.view", "members.create", "users.manage", "roles.manage"],
+    permissions: [
+      "members.view",
+      "members.create",
+      "members.update",
+      "members.archive",
+      "users.manage",
+      "roles.manage",
+    ],
   },
 };
 

@@ -14,20 +14,23 @@ drives whichever Chrome the machine already has.
 
 ## Running
 
-Four terminals, in order:
-
 ```bash
 # 1. Database
 cd apps/api && bash scripts/dev-mysql-sandbox.sh start
 
-# 2. API — the short TTL is what makes the token-expiry step honest rather than simulated
+# 2. API — the short TTL is what makes phase 3's token-expiry step honest rather than simulated.
+#    Phase 4 doesn't need it; run plain `pnpm dev` for that.
 cd apps/api && JWT_ACCESS_TTL=5s pnpm dev
 
 # 3. Admin web
 cd apps/admin-web && pnpm dev
 
-# 4. Verification
+# 4a. Phase 3 — auth, session, shell
 cd apps/admin-web && pnpm e2e
+
+# 4b. Phase 4 — members CRUD. Reset the fixtures first; the script is idempotent.
+cd apps/api && pnpm tsx scripts/phase4-fixtures.ts
+cd apps/admin-web && pnpm e2e:members
 ```
 
 Exits non-zero if any check fails. Screenshots land in `e2e/screenshots/`, which is gitignored —
@@ -62,3 +65,26 @@ page. Vite serves each source file at a stable URL and the browser caches ES mod
 this is the same singleton the running app uses — real interceptors, real in-memory token, nothing
 stubbed. If it resolved to a fresh copy, the store would hold no token and the call would 401
 twice instead of recovering, so the assertions themselves catch that failure mode.
+
+## What `phase4-verify.ts` covers
+
+1. The members list renders the fixture set, with archived members hidden by default.
+2. Brand palette on the members screens as computed CSS.
+3. Creating a member through the form, read back out of MySQL.
+4. Editing through the form, confirmed in MySQL including `updatedAt`.
+5. A duplicate phone number surfacing as a field-level error naming the conflicting member, with
+   the database unchanged.
+6. Search + status filter + pagination + sort in combination, cross-checked against the
+   equivalent SQL count, including that reversing the sort changes which row lands on page 1.
+7. Archiving through the confirmation dialog: `status = ARCHIVED`, `deletedAt` still NULL.
+8. RBAC with a real RECEPTIONIST login — create and view allowed, no archive button, and the
+   archive request refused 403 `PERMISSION_DENIED` when fired directly at the API.
+9. The archived member's phone number becoming available to a new member.
+
+Database assertions shell out to the `mysql` client rather than importing Prisma, so they read the
+rows through a different driver than the one that wrote them. Override the connection with
+`E2E_DB_HOST`, `E2E_DB_PORT`, `E2E_DB_USER`, `E2E_DB_PASSWORD`, `E2E_DB_NAME`.
+
+The script deletes every member whose phone starts with `+9198888` before it runs, so repeated
+passes stay clean; fixture members live in the `+9199000000xx` range. Neither range touches real
+data.

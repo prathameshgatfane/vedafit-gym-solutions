@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "e2e": "tsx e2e/phase3-verify.ts"
+    "e2e": "tsx e2e/phase3-verify.ts",
+    "e2e:members": "tsx e2e/phase4-verify.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

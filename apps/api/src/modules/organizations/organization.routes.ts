@@ -9,6 +9,7 @@ import { organizationIdParamsSchema, updateOrganizationSchema } from "./organiza
 import { branchRouter } from "../branches/branch.routes";
 import { userRouter } from "../users/user.routes";
 import { roleRouter } from "../roles/role.routes";
+import { memberRouter } from "../members/member.routes";
 
 export const organizationRouter = Router();
 
@@ -46,3 +47,4 @@ organizationRouter.patch(
 organizationRouter.use("/:organizationId/branches", branchRouter);
 organizationRouter.use("/:organizationId/users", userRouter);
 organizationRouter.use("/:organizationId/roles", roleRouter);
+organizationRouter.use("/:organizationId/members", memberRouter);

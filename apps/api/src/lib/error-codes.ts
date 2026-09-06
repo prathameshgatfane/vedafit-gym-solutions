@@ -25,7 +25,7 @@ export const ErrorCode = {
   USER_NOT_FOUND: "USER_NOT_FOUND",
   DUPLICATE_EMAIL: "DUPLICATE_EMAIL",
 
-  // Members (module lands Phase 4 — code reserved now since 1.3's dedup pattern is shared)
+  // Members (Phase 4)
   MEMBER_NOT_FOUND: "MEMBER_NOT_FOUND",
   DUPLICATE_PHONE: "DUPLICATE_PHONE",
 

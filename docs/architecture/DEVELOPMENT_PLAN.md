@@ -887,11 +887,57 @@ against the real API and the real MySQL database — `apps/admin-web/e2e/phase3-
 - `member_documents` deferred (needs object storage — not yet)
 **DB changes:** none beyond Phase 1
 **Definition of Done:**
-- [ ] Create/edit/archive a member through the UI, confirmed in DB
-- [ ] Search + status filter + pagination all work together
-- [ ] Duplicate-phone attempt shows a friendly error (service-layer check from 1.3 surfaced properly)
-- [ ] RBAC: RECEPTIONIST can create/view members but not archive (per matrix in Section 4.2)
-**Status:** Not started
+
+Verified by clicking through the real UI in a real Chrome against the real API, with every
+mutation read back out of MySQL using the `mysql` client rather than the API that wrote it —
+`apps/admin-web/e2e/phase4-verify.ts`, **51 checks, 0 failures**. Fixtures (a real branch-scoped
+RECEPTIONIST login and a known 7-member dataset) come from `apps/api/scripts/phase4-fixtures.ts`.
+
+- [x] Create/edit/archive a member through the UI, confirmed in DB — a member typed into the real
+  form produced a row with a lowercase ULID id, `status = ACTIVE` and `deletedAt = NULL`; editing
+  the surname through the form changed `lastName` in the database and moved `updatedAt` past
+  `createdAt`; archiving through the confirmation dialog set `status = ARCHIVED` while leaving
+  `deletedAt = NULL`, and the member dropped out of the default list while staying reachable.
+  Final table state after the run:
+  `Meera Iyer-Nair / +919888810001 / ARCHIVED`, `Walkin Signup / +919888820001 / ACTIVE`,
+  `Returning Member / +919888810001 / ACTIVE`.
+- [x] Search + status filter + pagination all work together — `?search=Singh&status=INACTIVE&limit=1&sortBy=firstName&sortOrder=asc`
+  against a 7-member fixture set (4 non-archived Singhs, 2 of them INACTIVE) returned "2 members
+  matching your filters", "Page 1 of 2", and `Divya Singh` alone on page 1. Clicking Next gave
+  `Esha Singh` with search and status still in the URL. Reversing only `sortOrder` put `Esha` on
+  page 1, which is what proves the sort is applied across the filtered set before it is cut into
+  pages rather than within a page. The filtered total was cross-checked against the equivalent
+  `SELECT COUNT(*)`, and archived members were shown to be reachable only via `?status=ARCHIVED`.
+- [x] Duplicate-phone attempt shows a friendly error — submitting a phone already held by an
+  active member returned 409 `DUPLICATE_PHONE` from the service-layer transaction check, rendered
+  as *"Phone number +919888810001 already belongs to Meera Iyer-Nair"* attached to the phone field
+  (`aria-invalid="true"`, focus moved there) rather than only as a banner. The form stayed put and
+  the database still held exactly one row for that number. Also covered in the API suite by a
+  concurrent-create race test that confirms exactly one of two simultaneous inserts wins.
+- [x] RBAC: RECEPTIONIST can create/view members but not archive — signed in as a real
+  `reception@demo-gym.test` session: listed members, created one that was confirmed in the
+  database, and saw an Edit button but no Archive button. Firing the archive request anyway
+  through the app's own axios instance (bypassing the UI entirely, carrying the receptionist's
+  real token) returned 403 `PERMISSION_DENIED`, and the member's row was unchanged.
+
+**Also verified beyond the stated DoD:**
+- Archiving frees the phone number: a new member was created through the UI with the archived
+  member's number, leaving two rows sharing it — the older `ARCHIVED`, the newer `ACTIVE`.
+- Branch scoping: a branch-scoped user sees only their own branch's members even when they name
+  no branch at all, and is refused (`BRANCH_MISMATCH`) for naming another one.
+- Brand palette on the new screens as computed CSS: `rgb(31, 31, 31)` filter bar and table header,
+  `rgb(201, 255, 31)` ACTIVE badge text and Add member button, `rgb(233, 255, 165)` subtitle.
+- 38 API tests and 33 React Testing Library tests for the module, on top of the existing suites —
+  116 API and 87 admin-web tests green overall.
+
+**Deviations (see Section 9 for the decision-log entries):**
+- Archive is a `status` transition; `deletedAt` is deliberately left untouched.
+- `POST /:memberId/archive` rather than `DELETE /:memberId`.
+- Member list and reads are branch-scoped for branch-scoped users.
+- Phone duplicate detection is exact-string; E.164 normalization deferred.
+- `status: ARCHIVED` is rejected by the update endpoint.
+
+**Status:** Done
 
 ### Phase 5 — Memberships (plans, renewals, freeze, cancel, trials)
 **Depends on:** Phase 4
@@ -1150,6 +1196,44 @@ intentionally not speculated further here, per "don't build infra before you nee
   response bodies in the browser's HTTP cache. Worth sending `Cache-Control: no-store` on
   `/auth/*` — an API change, so it is not being made during a frontend phase. Fold into the next
   API-side phase.
+- **2026-09-06:** Archiving a member sets `status = ARCHIVED` and leaves `deletedAt` **NULL**.
+  The `Member` model carries both, and Phase 4 had to pick which one "archive" means. A soft
+  delete would hide the record from every read path, which defeats the point: archiving exists so
+  a lapsed member's history stays readable and they can be found again if they come back —
+  `?status=ARCHIVED` lists them and their detail page still loads. `deletedAt` is left for a real
+  erasure path (a GDPR-style request), which no phase currently exposes. Locked Decision 1.3's
+  uniqueness check tests for *both* (`deletedAt IS NULL AND status <> 'ARCHIVED'`), so a phone
+  number frees up on archive and the check stays correct if a later phase does start writing
+  `deletedAt`. Verified in the browser: after archiving, the number was reusable and the two rows
+  coexist.
+- **2026-09-06:** Archive is `POST /members/:memberId/archive`, not `DELETE /members/:memberId` —
+  a deliberate break from the users module, which uses `DELETE` for its soft delete. Since this
+  archive is a status transition and not a delete, `DELETE` would misdescribe it, and a named
+  sub-resource leaves room for `POST /:memberId/restore` later without reusing a verb misleadingly.
+  Its own permission (`members.archive`) hangs off that route, which is what lets the Section 4.2
+  matrix grant a RECEPTIONIST `members.update` without also granting archive.
+- **2026-09-06:** `PATCH /members/:memberId` rejects `status: "ARCHIVED"` with a validation error;
+  it accepts only `ACTIVE`/`INACTIVE`. Without that, `members.update` would be a back door around
+  `members.archive` and the RBAC split above would be decorative.
+- **2026-09-06:** Member reads and writes are **branch-scoped in the service layer** for a
+  branch-scoped caller, not only in `tenant.middleware.ts`. The middleware rejects a caller who
+  *names* another branch, but a receptionist who simply omits `branchId` would otherwise receive
+  every member in the organization. `memberService` therefore forces `branchId` from the JWT for
+  list/get/update/archive, and a member in another branch reads as 404 rather than 403, so the
+  endpoint isn't an existence oracle. Phase 1's users module has no equivalent because it is
+  gated on `users.manage`, which no branch-scoped role holds.
+- **2026-09-06:** Duplicate-phone detection is an **exact string match** on the trimmed value, so
+  `+91 98765 43210` and `+919876543210` are treated as different numbers. Normalizing to E.164
+  would need either a stored normalized column or a scan, since the existing
+  `@@index([organizationId, phone])` can't serve a computed comparison — real work for a problem
+  that hasn't appeared yet. The `DUPLICATE_PHONE` message names the conflicting member, so the
+  near-miss case is at least legible to staff. Revisit alongside Option 3 (generated column) in
+  Locked Decision 1.3 if duplicates become a real-world nuisance.
+- **2026-09-06:** The members list keeps its full filter state (`page`, `limit`, `search`,
+  `status`, `sortBy`, `sortOrder`) in the URL query string rather than in component state, so a
+  filtered view survives a reload, can be shared, and is restored when navigating back from a
+  member's detail page. Unrecognised values fall back to defaults instead of being forwarded to
+  the API. Every list screen in later phases should follow this.
 - **2026-09-06:** `.github/workflows/ci.yml` gained a MySQL 8.0 service container (published on
   3307, matching `docker-compose.yml`), a `prisma generate` step before typecheck, a
   `prisma migrate deploy` step before the tests, and a guard step that fails the build if any

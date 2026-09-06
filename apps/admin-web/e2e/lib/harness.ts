@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -175,3 +176,68 @@ export function summary(): number {
 }
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ---------------------------------------------------------------------------
+// Direct database access
+//
+// Shelling out to the `mysql` client rather than importing Prisma keeps the check honestly
+// independent of the code under test: these assertions read the same rows an operator would,
+// through a different driver, rather than through the ORM that wrote them.
+// ---------------------------------------------------------------------------
+
+const DB = {
+  host: process.env.E2E_DB_HOST ?? "127.0.0.1",
+  port: process.env.E2E_DB_PORT ?? "3307",
+  user: process.env.E2E_DB_USER ?? "gym_app",
+  password: process.env.E2E_DB_PASSWORD ?? "gym_app_dev_pw",
+  name: process.env.E2E_DB_NAME ?? "gym_dev",
+};
+
+/** Runs a query and returns rows as objects, using MySQL's tab-separated batch output. */
+export function queryDb(sql: string): Record<string, string>[] {
+  const stdout = execFileSync(
+    "mysql",
+    [
+      "--protocol=tcp",
+      `-h${DB.host}`,
+      `-P${DB.port}`,
+      `-u${DB.user}`,
+      `-p${DB.password}`,
+      "--batch",
+      "--raw",
+      DB.name,
+      "-e",
+      sql,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = lines[0]!.split("\t");
+  return lines.slice(1).map((line) => {
+    const cells = line.split("\t");
+    return Object.fromEntries(headers.map((header, i) => [header, cells[i] ?? ""]));
+  });
+}
+
+/** Single-row convenience for the very common "look up this one record" case. */
+export function queryOne(sql: string): Record<string, string> | undefined {
+  return queryDb(sql)[0];
+}
+
+/** Pulls a column the script can't continue without, failing loudly rather than passing around
+ * an `undefined` that would silently become the string "undefined" in a later query. */
+export function requireCell(row: Record<string, string> | undefined, column: string): string {
+  const value = row?.[column];
+  if (value === undefined) {
+    throw new Error(`Query returned no "${column}" — got ${JSON.stringify(row)}`);
+  }
+  return value;
+}
+
+/** Escapes a value for inlining into a query. Fine for a dev script with known inputs. */
+export function sqlString(value: string): string {
+  return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''")}'`;
+}
