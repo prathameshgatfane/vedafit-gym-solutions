@@ -2,9 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tailwind + the brand palette (docs/architecture/DEVELOPMENT_PLAN.md 1.14) are registered as of
-   Phase 1, but not yet applied to any component — Phase 3 does the actual login/layout styling. */
+/* Brand palette: docs/architecture/DEVELOPMENT_PLAN.md Section 1.14, defined as theme colors in
+   tailwind.config.ts. Applied to real UI as of Phase 3. Components use `brand-*` utility classes;
+   the only place raw values appear is the Tailwind theme, so a palette correction is a one-file
+   change. The two rules below exist so the dark background covers the viewport even before React
+   mounts — otherwise a cold load flashes white. */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
+  @apply bg-brand-black text-brand-white;
 }

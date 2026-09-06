@@ -7,8 +7,7 @@ import type { Config } from "tailwindcss";
  * not pixel-final. If/when exact values are confirmed, update ONLY this object; no component
  * should ever hardcode these hex values directly.
  *
- * Registered here in Phase 1. Not applied to any UI yet — Phase 3 (login screen/layout) is the
- * first phase that actually styles anything with it.
+ * Registered here in Phase 1; applied to real UI (login screen + app shell) as of Phase 3.
  */
 const brand = {
   black: "#000000", // Primary background (dark)

@@ -175,9 +175,8 @@ values.
 Wired into `apps/admin-web`'s Tailwind config as named theme colors (`brand.black`,
 `brand.black-88`, `brand.green`, `brand.green-muted`, `brand.white`) — never hardcoded as raw hex
 in components — so the palette can be corrected in one place later without touching any component.
-This is registered now (Phase 1) but **not applied to any UI yet** — Phase 3 (login screen/layout)
-is the first phase that actually styles anything with it. Same "config now, features later" pattern
-as the rest of Phase 0/1.
+Registered in Phase 1 and **applied to real UI as of Phase 3** (login screen and app shell),
+verified in a browser as computed CSS values rather than as class names in JSX.
 
 ---
 
@@ -825,11 +824,59 @@ missed that family-wide revocation needs a column to group a rotation chain by. 
 - React Testing Library set up (1.11), first component tests
 **DB changes:** none
 **Definition of Done:**
-- [ ] Can log in with seeded OWNER user and land on an empty dashboard shell
-- [ ] Refreshing the page preserves session (via refresh cookie)
-- [ ] Logging out clears session and redirects to login
-- [ ] Protected routes redirect unauthenticated users to login
-**Status:** Not started
+
+All four items were verified in a real Chrome (`puppeteer-core` driving the system browser)
+against the real API and the real MySQL database — `apps/admin-web/e2e/phase3-verify.ts`,
+**51 checks, 0 failures**. Screenshots in `apps/admin-web/e2e/screenshots/`. The API was run with
+`JWT_ACCESS_TTL=5s` so the token-expiry step exercised a genuine expiry rather than a simulated
+401.
+
+- [x] Can log in with seeded OWNER user and land on an empty dashboard shell — typing
+  `owner@demo-gym.test` into the real form produced `POST /auth/login → 200` followed by
+  `GET /auth/me → 200`, and the URL moved from `/login` to `/`. The rendered shell read
+  `Demo Gym` / `OWNER` / `1 branch`, all sourced from the live `/auth/me` payload rather than
+  anything hardcoded. The refresh cookie was confirmed `HttpOnly`, `SameSite=Lax`, path-scoped to
+  `/api/v1/auth`, and unreadable from `document.cookie`; `localStorage` and `sessionStorage` were
+  both empty of anything token-shaped.
+- [x] Refreshing the page preserves session (via refresh cookie) — a real `page.reload()` landed
+  back on `/` with the shell intact and the login form absent. The boot sequence on the wire was
+  exactly `POST /auth/refresh → 200`, then `GET /auth/me`, with **one** refresh call, not two,
+  under React StrictMode.
+- [x] Logging out clears session and redirects to login — clicking the real Sign out button sent
+  `POST /auth/logout → 200`, cleared the `refresh_token` cookie (verified via CDP, not
+  `document.cookie`), emptied the store, and navigated to `/login`. Revisiting `/` afterwards
+  redirected again, with the boot refresh rejected `401`.
+- [x] Protected routes redirect unauthenticated users to login — a cold visit to `/` with no
+  cookie redirected to `/login` after the boot refresh was rejected; no app shell was ever
+  rendered. Covered in jsdom too, including the bootstrapping window and mid-session ejection.
+
+**Also verified beyond the stated DoD:**
+- Refresh-on-401 interceptor, against a genuinely expired token: the wire showed
+  `GET /auth/me → 401`, `POST /auth/refresh → 200`, `GET /auth/me → 200` — exactly three calls,
+  and the calling code received the retried response as if nothing had happened.
+- Single-flight refresh under three parallel 401s: exactly **one** `POST /auth/refresh`, all
+  three callers resolved 200, and the session survived. Confirmed in the database afterwards —
+  the login's token family held exactly 4 rows (1 login + 3 rotations: reload, expiry, burst),
+  all `revokedAt` set after logout. A duplicate refresh would have tripped Phase 2's
+  reuse detection and revoked the family mid-run.
+- Brand palette (Section 1.14) read back as **computed** CSS, not as class names in JSX:
+  `rgb(0, 0, 0)` body, `rgb(31, 31, 31)` login card and sidebar, `rgb(201, 255, 31)` submit
+  button and active nav pill, `rgb(233, 255, 165)` subtitles, `rgb(254, 249, 245)` headings and
+  labels — matching `#000000 / #1F1F1F / #C9FF1F / #E9FFA5 / #FEF9F5` exactly.
+- 46 React Testing Library / Vitest tests across login form validation and submission, the
+  protected-route guard, the interceptor, the layout shell, and the session store — plus the
+  existing 78 API tests still green.
+
+**Deviations (see Section 9 for the decision-log entries):**
+- Access token is held in memory only and never persisted, so every cold load spends one
+  speculative `POST /auth/refresh`.
+- Refresh is single-flight, which is a correctness requirement rather than an optimization.
+- Verification tooling (`puppeteer-core` + `apps/admin-web/e2e/`) added as a devDependency,
+  excluded from `pnpm test` and from CI.
+- `GET /auth/me` is served with Express's default `ETag`, so repeat calls return `304` on the
+  wire. Noted, not changed — an API concern, logged in Section 9.
+
+**Status:** Done
 
 ### Phase 4 — Admin: Members module
 **Depends on:** Phase 3
@@ -1065,6 +1112,44 @@ intentionally not speculated further here, per "don't build infra before you nee
   Express only populates the path params matched up to a middleware's own mount point, so the
   parent-level guard cannot see a `:branchId` deeper in the path. Without the second application a
   branch-scoped user could read a sibling branch; a test caught this and now covers it.
+- **2026-09-06:** The admin-web access token is held **in memory only** (a field on the Zustand
+  session store) and is never written to `localStorage`, `sessionStorage`, or a readable cookie.
+  Phase 2 put the refresh token in an httpOnly cookie specifically so that an XSS foothold cannot
+  walk away with a durable session; parking the access token somewhere script-readable would hand
+  most of that protection back for the sake of saving one request. Consequence: a page reload
+  always starts with no token, so `App` boots by trading the refresh cookie for a new one. Also
+  means multiple tabs each hold their own access token, which is fine — they share the cookie.
+- **2026-09-06:** Every cold load spends one **speculative** `POST /auth/refresh`, even for a
+  visitor who has never logged in (it returns 401 and the app renders the login screen). The
+  alternative — a readable "am I logged in?" flag in `localStorage` — reintroduces client-side
+  session state that can disagree with the server, to save one short request on the anonymous
+  path only. Revisit if the login screen's time-to-interactive ever becomes a real complaint.
+- **2026-09-06:** `refreshAccessToken()` is **single-flight**: concurrent callers share one
+  in-flight promise, reset once it settles. This is a correctness requirement, not an
+  optimization. Phase 2 revokes an entire refresh-token family when a spent token is replayed, and
+  two parallel refreshes send the same cookie — the second one *is* a replay, so the API would
+  correctly revoke the family and sign the user out. React 18 StrictMode double-invokes effects in
+  development, so without this the app would log developers out on most cold loads. Verified in
+  the browser: three concurrent 401s produced exactly one refresh call. If the API ever moves to a
+  grace window on rotation, this stays anyway — it is also just fewer requests.
+- **2026-09-06:** `useSessionBootstrap` deliberately has **no cleanup/cancellation**. The first
+  implementation aborted its in-flight bootstrap on unmount; under StrictMode the simulated
+  unmount cancelled the only run the `useRef` guard would ever allow, and the app hung on
+  "Restoring session" forever. Caught by the browser harness, not by the jsdom tests. Because the
+  result lands in a global store rather than component state, a late write is harmless.
+- **2026-09-06:** Real-browser verification tooling added at `apps/admin-web/e2e/`, driven by
+  `puppeteer-core` (a devDependency; unlike `puppeteer` it bundles no Chromium and drives the
+  system Chrome). Excluded from `pnpm test` — `vitest.config.ts` only collects
+  `src/**/*.test.{ts,tsx}` — and not wired into CI. jsdom cannot honestly verify computed CSS,
+  httpOnly cookie behaviour, session survival across a reload, or a genuinely expired JWT, all of
+  which are Phase 3 DoD items. Kept out of CI so a browser dependency can't make the pipeline
+  flaky; it is a reproducible manual verification transcript, run via `pnpm e2e`.
+- **2026-09-06:** Observed, not changed: `GET /auth/me` is served with Express's default `ETag`,
+  so a repeat request returns `304 Not Modified` on the wire and the browser serves the cached
+  body. Functionally correct (each call still revalidates), but it does leave authenticated
+  response bodies in the browser's HTTP cache. Worth sending `Cache-Control: no-store` on
+  `/auth/*` — an API change, so it is not being made during a frontend phase. Fold into the next
+  API-side phase.
 - **2026-09-06:** `.github/workflows/ci.yml` gained a MySQL 8.0 service container (published on
   3307, matching `docker-compose.yml`), a `prisma generate` step before typecheck, a
   `prisma migrate deploy` step before the tests, and a guard step that fails the build if any

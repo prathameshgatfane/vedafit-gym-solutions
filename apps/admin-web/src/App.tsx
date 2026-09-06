@@ -1,13 +1,26 @@
-type AppProps = {
-  apiUrl: string;
-};
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { BrowserRouter } from "react-router-dom";
+import { AppRoutes } from "./app/router";
+import { createQueryClient } from "./app/query-client";
+import { useSessionBootstrap } from "./features/auth/useSessionBootstrap";
 
-function App({ apiUrl }: AppProps) {
+function SessionBootstrap() {
+  useSessionBootstrap();
+  return null;
+}
+
+function App() {
+  // Created once per app instance rather than at module scope, so tests get a clean cache.
+  const [queryClient] = useState(createQueryClient);
+
   return (
-    <main>
-      <h1>Gym Management — Admin</h1>
-      <p>Phase 0 scaffold. API base URL: {apiUrl}</p>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <SessionBootstrap />
+        <AppRoutes />
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 
