@@ -32,12 +32,22 @@ import {
 const OWNER = { email: "owner@demo-gym.test", password: "ChangeMe123!" };
 const RECEPTIONIST = { email: "reception@demo-gym.test", password: "ChangeMe123!" };
 
-/** Must match BROWSER_PHONE_PREFIX in apps/api/scripts/phase4-fixtures.ts. */
+/** Must match BROWSER_PHONE_PREFIX / FIXTURE_PHONE_PREFIX in apps/api/scripts/phase4-fixtures.ts. */
 const PHONE_PREFIX = "+9198888";
+const FIXTURE_PHONE_PREFIX = "+9199000000";
+const MAIN_BRANCH_NAME = "Main Branch";
 const phone = (suffix: string) => `${PHONE_PREFIX}${suffix}`;
 
 const CREATED_PHONE = phone("10001");
 const RECEPTIONIST_PHONE = phone("20001");
+
+const FIXTURE_NON_ARCHIVED_NAMES = [
+  "Aarav Singh",
+  "Bhavna Singh",
+  "Chetan Verma",
+  "Divya Singh",
+  "Esha Singh",
+] as const;
 
 async function login(page: Page, who: { email: string; password: string }) {
   await page.goto(`${APP_URL}/login`, { waitUntil: "networkidle0" });
@@ -49,7 +59,7 @@ async function login(page: Page, who: { email: string; password: string }) {
 }
 
 async function logout(page: Page) {
-  await page.click('[data-testid="app-topbar"] button');
+  await page.click('[data-testid="sign-out"]');
   await page.waitForSelector('input[type="password"]', { timeout: 10_000 });
 }
 
@@ -58,6 +68,22 @@ async function tableNames(page: Page): Promise<string[]> {
   return page.$$eval("[data-testid='members-table'] tbody tr td:first-child", (cells) =>
     cells.map((cell) => cell.textContent?.trim() ?? ""),
   );
+}
+
+/** Picks an option by its visible text from the select belonging to a label. */
+async function selectByText(page: Page, label: string, optionText: string) {
+  const handle = await page.$(
+    `::-p-xpath(//label[text()=${sqlString(label)}]/following-sibling::*[1]//select)`,
+  );
+  if (!handle) throw new Error(`No select for label "${label}"`);
+  const value = await handle.evaluate((el, text) => {
+    const option = Array.from((el as HTMLSelectElement).options).find((o) =>
+      o.textContent?.includes(text as string),
+    );
+    return option?.value ?? "";
+  }, optionText);
+  if (!value) throw new Error(`No option matching "${optionText}" in "${label}"`);
+  await handle.select(value);
 }
 
 async function fillMemberForm(
@@ -76,6 +102,8 @@ async function fillMemberForm(
   await setField("Last name", values.lastName);
   await setField("Phone", values.phone);
   if (values.email) await setField("Email (optional)", values.email);
+  // OWNER starts on "all branches"; a multi-branch gym leaves Branch empty until we pick one.
+  await selectByText(page, "Branch", MAIN_BRANCH_NAME);
 }
 
 /** Everything the UI created during this run, so a re-run starts clean. */
@@ -100,7 +128,10 @@ async function main(): Promise<number> {
     // ---------------------------------------------------------------------
     step("1. Members list renders the seeded fixture set");
     // ---------------------------------------------------------------------
-    await page.goto(`${APP_URL}/members`, { waitUntil: "networkidle0" });
+    await page.goto(
+      `${APP_URL}/members?search=${encodeURIComponent(FIXTURE_PHONE_PREFIX)}`,
+      { waitUntil: "networkidle0" },
+    );
     await page.waitForSelector("[data-testid='members-table'] tbody tr");
 
     const initialNames = await tableNames(page);
@@ -110,9 +141,14 @@ async function main(): Promise<number> {
       initialNames.join(", "),
     );
     checkEqual("5 non-archived fixture members listed", initialNames.length, 5);
+    check(
+      "the five Phase 4 non-archived fixtures are the listed rows",
+      FIXTURE_NON_ARCHIVED_NAMES.every((name) => initialNames.includes(name)),
+      initialNames.join(", "),
+    );
 
     const dbActive = queryOne(
-      `SELECT COUNT(*) AS n FROM members WHERE phone LIKE '+9199000000%' AND status <> 'ARCHIVED'`,
+      `SELECT COUNT(*) AS n FROM members WHERE phone LIKE '${FIXTURE_PHONE_PREFIX}%' AND status <> 'ARCHIVED'`,
     );
     checkEqual("matches the database count", initialNames.length, Number(dbActive?.n));
     console.log(`  screenshot: ${await screenshot(page, "p4-01-members-list")}`);
@@ -131,7 +167,7 @@ async function main(): Promise<number> {
       BRAND_RGB.black88,
     );
     // Picked by content rather than by position: the first `[data-testid=status-badge]` in the
-    // DOM is whichever member sorts first, and the first `button` is the topbar's Sign out.
+    // DOM is whichever member sorts first. Sign out is `[data-testid="sign-out"]`, not the first button.
     const activeBadgeColor = await page.$$eval("[data-testid='status-badge']", (badges) => {
       const active = badges.find((b) => b.textContent?.trim() === "ACTIVE");
       return active ? window.getComputedStyle(active).color : "no ACTIVE badge found";
@@ -316,7 +352,10 @@ async function main(): Promise<number> {
     checkEqual("descending sort puts Esha on page 1", (await tableNames(page))[0], "Esha Singh");
 
     // And the archived members are reachable only by asking.
-    await page.goto(`${APP_URL}/members?status=ARCHIVED`, { waitUntil: "networkidle0" });
+    await page.goto(
+      `${APP_URL}/members?search=${encodeURIComponent(FIXTURE_PHONE_PREFIX)}&status=ARCHIVED`,
+      { waitUntil: "networkidle0" },
+    );
     await page.waitForSelector("[data-testid='members-table'] tbody tr");
     const archivedNames = await tableNames(page);
     checkEqual("2 archived fixture members", archivedNames.length, 2);
