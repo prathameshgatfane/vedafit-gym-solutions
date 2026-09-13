@@ -21,6 +21,7 @@ import {
   computed,
   forwardPageErrors,
   launch,
+  queryDb,
   queryOne,
   requireCell,
   screenshot,
@@ -175,13 +176,36 @@ function monthBoundsUtc(timezone: string): { start: string; end: string } {
   return { start: iso(start), end: iso(end) };
 }
 
-function sqlMembers(organizationId: string, branchId: string | null) {
+/** Locked Decision 1.19.1 — TRAINER widgets are own-roster, not gym-wide. Empty means zero. */
+function rosterSql(alias: string, memberIds: string[] | null): string {
+  if (memberIds === null) return "";
+  if (memberIds.length === 0) return `AND ${alias}.id IN ('')`;
+  return `AND ${alias}.id IN (${memberIds.map(sqlString).join(", ")})`;
+}
+
+function trainerAssignedMemberIds(): string[] {
+  return queryDb(
+    `SELECT ta.memberId AS id
+       FROM trainer_assignments ta
+       JOIN trainer_profiles tp ON tp.id = ta.trainerProfileId
+       JOIN users u ON u.id = tp.userId
+      WHERE u.email = ${sqlString(TRAINER.email)}
+        AND u.deletedAt IS NULL`,
+  ).map((row) => row.id);
+}
+
+function sqlMembers(
+  organizationId: string,
+  branchId: string | null,
+  rosterMemberIds: string[] | null = null,
+) {
   const branch = branchId ? `AND m.branchId = ${sqlString(branchId)}` : "";
+  const roster = rosterSql("m", rosterMemberIds);
   const total = requireCell(
     queryOne(
       `SELECT COUNT(*) AS n FROM members m
        WHERE m.organizationId = ${sqlString(organizationId)}
-         AND m.deletedAt IS NULL AND m.status <> 'ARCHIVED' ${branch}`,
+         AND m.deletedAt IS NULL AND m.status <> 'ARCHIVED' ${branch} ${roster}`,
     ),
     "n",
   );
@@ -192,7 +216,7 @@ function sqlMembers(organizationId: string, branchId: string | null) {
        WHERE ms.organizationId = ${sqlString(organizationId)}
          AND ms.status = 'ACTIVE'
          AND ms.startDate <= UTC_DATE() AND ms.endDate >= UTC_DATE()
-         AND m.deletedAt IS NULL AND m.status <> 'ARCHIVED' ${branch}`,
+         AND m.deletedAt IS NULL AND m.status <> 'ARCHIVED' ${branch} ${roster}`,
     ),
     "n",
   );
@@ -255,13 +279,24 @@ function sqlExpiring(organizationId: string, branchId: string | null) {
   );
 }
 
-function sqlAttendance(organizationId: string, branchId: string | null, date: string) {
-  const branch = branchId ? `AND branchId = ${sqlString(branchId)}` : "";
+function sqlAttendance(
+  organizationId: string,
+  branchId: string | null,
+  date: string,
+  rosterMemberIds: string[] | null = null,
+) {
+  const branch = branchId ? `AND a.branchId = ${sqlString(branchId)}` : "";
+  const roster =
+    rosterMemberIds === null
+      ? ""
+      : rosterMemberIds.length === 0
+        ? "AND a.memberId IN ('')"
+        : `AND a.memberId IN (${rosterMemberIds.map(sqlString).join(", ")})`;
   return requireCell(
     queryOne(
-      `SELECT COUNT(*) AS n FROM attendances
-       WHERE organizationId = ${sqlString(organizationId)}
-         AND attendanceDate = ${sqlString(date)} ${branch}`,
+      `SELECT COUNT(*) AS n FROM attendances a
+       WHERE a.organizationId = ${sqlString(organizationId)}
+         AND a.attendanceDate = ${sqlString(date)} ${branch} ${roster}`,
     ),
     "n",
   );
@@ -281,8 +316,9 @@ async function assertWidgetsMatchSql(
   expectOutstanding: boolean,
   expectExpiring: boolean,
   expectAttendance: boolean,
+  rosterMemberIds: string[] | null = null,
 ) {
-  const members = sqlMembers(organizationId, branchId);
+  const members = sqlMembers(organizationId, branchId, rosterMemberIds);
   await waitForText(page, '[data-testid="widget-members-value"]', members.total);
   checkEqual("members total matches SQL", await textOf(page, '[data-testid="widget-members-value"]'), members.total);
   check(
@@ -323,7 +359,12 @@ async function assertWidgetsMatchSql(
   }
 
   if (expectAttendance) {
-    const expected = sqlAttendance(organizationId, branchId, gymToday(timezone));
+    const expected = sqlAttendance(
+      organizationId,
+      branchId,
+      gymToday(timezone),
+      rosterMemberIds,
+    );
     await waitForText(page, '[data-testid="widget-attendance-value"]', expected);
     checkEqual(
       "today's attendance matches the gym-local day",
@@ -441,7 +482,25 @@ async function main() {
     await logout(page);
     await login(page, TRAINER);
     await gotoDashboard(page);
-    await assertWidgetsMatchSql(page, organizationId, home, timezone, false, false, false, true);
+    const gymWideMembers = sqlMembers(organizationId, home);
+    const rosterIds = trainerAssignedMemberIds();
+    const rosterMembers = sqlMembers(organizationId, home, rosterIds);
+    check(
+      "trainer own-roster SQL is not the gym-wide headcount (1.19.1, Phase 9 — not Phase 15)",
+      rosterMembers.total !== gymWideMembers.total,
+      `roster ${rosterMembers.total} vs gym-wide ${gymWideMembers.total} (${rosterIds.length} assignments)`,
+    );
+    await assertWidgetsMatchSql(
+      page,
+      organizationId,
+      home,
+      timezone,
+      false,
+      false,
+      false,
+      true,
+      rosterIds,
+    );
     await screenshot(page, "phase8-06-trainer");
 
     step("6. ACCOUNTANT — money yes, the register no");

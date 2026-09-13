@@ -42,7 +42,9 @@ async function clickSemantics(page: Page, label: string) {
 }
 
 async function login(page: Page, phone: string) {
-  await page.goto(`${APP_URL}/#/login`, { waitUntil: "load" });
+  // Debug `flutter run -d web-server` often never fires `load` (VM service /
+  // CanvasKit). DOM is enough; HTTP 200 on :8080 is the ready check.
+  await page.goto(`${APP_URL}/#/login`, { waitUntil: "domcontentloaded", timeout: 20_000 });
   await page.waitForFunction(
     () => document.body.innerText.includes("Member portal"),
     { timeout: 20_000 },
@@ -100,7 +102,7 @@ async function main() {
     );
     checkEqual("Alice term is ACTIVE in MySQL", requireCell(sqlMembership, "status"), "ACTIVE");
 
-    await page.goto(`${APP_URL}/#/membership`, { waitUntil: "load" });
+    await page.goto(`${APP_URL}/#/membership`, { waitUntil: "domcontentloaded", timeout: 20_000 });
     await page.waitForFunction(() => document.body.innerText.includes("P13 Portal Gold"), {
       timeout: 10_000,
     }).catch(() => null);
@@ -120,7 +122,7 @@ async function main() {
     check("Bob has a payment Alice must not see", bobPayments.length === 1);
 
     step("3. Session refresh on reload (1.23.4)");
-    await page.reload({ waitUntil: "load" });
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 20_000 });
     await page.waitForFunction(
       () => document.body.innerText.includes("Alice"),
       { timeout: 20_000 },

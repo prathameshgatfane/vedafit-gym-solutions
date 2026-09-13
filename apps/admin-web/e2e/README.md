@@ -67,8 +67,11 @@ cd apps/admin-web && pnpm e2e:notifications
 
 # 4k. Phase 13 — member Flutter app (Web/Chrome). CORS must include :8080.
 cd apps/api && pnpm tsx scripts/phase13-fixtures.ts
-cd apps/member-app && flutter run -d web-server --web-port 8080 --web-hostname 127.0.0.1
-cd apps/admin-web && E2E_APP_URL=http://127.0.0.1:8080 pnpm e2e:member
+cd apps/member-app && flutter run -d web-server --web-port 8080 --web-hostname 127.0.0.1 \
+  --dart-define=API_URL=http://127.0.0.1:4000/api/v1
+# "Waiting for connection from debug service on Web Server…" is the steady state —
+# the HTTP server is already listening. Confirm with: curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:8080
+cd apps/admin-web && E2E_HEADFUL=1 E2E_APP_URL=http://127.0.0.1:8080 pnpm e2e:member
 ```
 
 The API's global rate limiter is a 15-minute per-IP window held in process memory, and a few
@@ -295,6 +298,10 @@ phase still has both. Redis must be running; the API process starts the send wor
 
 Phase 13 fixture members are `+919111100001` (Alice) and `+919111100002` (Bob).
 `phase13-fixtures.ts` recreates them. `E2E_APP_URL` defaults to `http://127.0.0.1:8080`.
+
+`flutter run -d web-server` prints `Waiting for connection from debug service on Web
+Server…` and stays there — that is Flutter's debug-attach prompt, not a hang. The
+HTTP listener is up; `curl http://127.0.0.1:8080` returning 200 is the ready check.
 
 Flutter Web is CanvasKit. Headless Chrome often never paints the semantics tree, so
 `document.body.innerText` stays empty and this harness times out even when a headed

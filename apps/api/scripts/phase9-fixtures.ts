@@ -102,6 +102,22 @@ async function main() {
   });
   const p9Ids = p9Members.map((row) => row.id);
   if (p9Ids.length > 0) {
+    const payments = await prisma.payment.findMany({
+      where: { memberId: { in: p9Ids } },
+      select: { id: true },
+    });
+    await prisma.auditLog.deleteMany({
+      where: { entityType: "Payment", entityId: { in: payments.map((row) => row.id) } },
+    });
+    await prisma.payment.deleteMany({
+      where: { memberId: { in: p9Ids }, refundOfPaymentId: { not: null } },
+    });
+    await prisma.payment.deleteMany({ where: { memberId: { in: p9Ids } } });
+    await prisma.invoice.deleteMany({ where: { memberId: { in: p9Ids } } });
+    await prisma.membership.deleteMany({ where: { memberId: { in: p9Ids } } });
+    await prisma.notificationLog.deleteMany({ where: { memberId: { in: p9Ids } } });
+    await prisma.memberRefreshToken.deleteMany({ where: { memberId: { in: p9Ids } } });
+    await prisma.memberDocument.deleteMany({ where: { memberId: { in: p9Ids } } });
     await prisma.trainerAssignment.deleteMany({ where: { memberId: { in: p9Ids } } });
     await prisma.attendance.deleteMany({ where: { memberId: { in: p9Ids } } });
     await prisma.member.deleteMany({ where: { id: { in: p9Ids } } });

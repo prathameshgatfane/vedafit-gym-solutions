@@ -83,6 +83,27 @@ async function main() {
     },
   });
   if (p10Ids.length > 0) {
+    // Convert leftover (Zoya Convert) hangs invoices / payments / terms / assignments /
+    // notification logs / portal tokens off memberId. Delete those first — same class of
+    // teardown Phase 5/6 already learned. Not a Phase 15 schema change.
+    const payments = await prisma.payment.findMany({
+      where: { memberId: { in: p10Ids } },
+      select: { id: true },
+    });
+    await prisma.auditLog.deleteMany({
+      where: { entityType: "Payment", entityId: { in: payments.map((row) => row.id) } },
+    });
+    await prisma.payment.deleteMany({
+      where: { memberId: { in: p10Ids }, refundOfPaymentId: { not: null } },
+    });
+    await prisma.payment.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.invoice.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.membership.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.attendance.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.trainerAssignment.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.notificationLog.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.memberRefreshToken.deleteMany({ where: { memberId: { in: p10Ids } } });
+    await prisma.memberDocument.deleteMany({ where: { memberId: { in: p10Ids } } });
     await prisma.member.deleteMany({ where: { id: { in: p10Ids } } });
   }
 

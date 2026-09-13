@@ -28,6 +28,7 @@ import {
   queryOne,
   requireCell,
   screenshot,
+  sleep,
   sqlString,
   step,
   summary,
@@ -137,16 +138,28 @@ async function main() {
     const runText = await textOf(page, "[data-testid='run-result']");
     check("scan queued at least one job", /Queued [1-9]/.test(runText));
 
-    await page.waitForFunction(
-      () => {
-        const rows = [...document.querySelectorAll("[data-testid='notification-row']")];
-        return (
-          rows.some((row) => row.getAttribute("data-status") === "SENT" && row.textContent?.includes("Expiry Soon")) &&
-          rows.some((row) => row.getAttribute("data-status") === "SENT" && row.textContent?.includes("Owing Balance"))
-        );
-      },
-      { timeout: 15_000 },
+    // The worker claim is MySQL SENT, not the React Query poll. A crowded leftover
+    // history page (or a 429 on refetch after back-to-back harnesses) leaves the
+    // DOM stale while BullMQ has already written SENT — that is not Phase 15.
+    const deadline = Date.now() + 45_000;
+    let mysql = p12Logs();
+    while (Date.now() < deadline) {
+      mysql = p12Logs();
+      if (mysql.length >= 2 && mysql.every((row) => row.status === "SENT")) break;
+      await sleep(250);
+    }
+    check(
+      "worker marked P12 logs SENT in MySQL",
+      mysql.length >= 2 && mysql.every((row) => row.status === "SENT"),
+      mysql.map((row) => `${row.event}:${row.status}`).join(", ") || "(none)",
     );
+
+    await page.reload({ waitUntil: "networkidle0" });
+    const search = await page.$('input[type="search"]');
+    if (search) {
+      await search.type("Expiry Soon");
+      await sleep(500);
+    }
 
     const rows = p12Logs();
     checkEqual("exactly two P12 notification logs", String(rows.length), "2");

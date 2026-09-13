@@ -267,12 +267,30 @@ async function main() {
   check("Kiran is already on the roster", /Kiran Assigned/.test(beforeAssign));
   check("Zoya is not", !/Zoya Outsider/.test(beforeAssign));
 
-  await page.type('[data-testid="assign-search"]', "Zoya");
-  await page.waitForSelector('[data-testid="assign-result"]', { timeout: 10_000 });
-  await page.click('[data-testid="assign-button"]');
+  // Phone, not "Zoya": Phase 10's leftover "Zoya Convert" also matches a name search and
+  // page.click('[data-testid="assign-button"]') would assign the first hit.
+  await page.type('[data-testid="assign-search"]', `${MEMBER_PHONE_PREFIX}00002`);
+  await page.waitForFunction(
+    (name) =>
+      [...document.querySelectorAll('[data-testid="assign-result"]')].some((el) =>
+        (el.textContent ?? "").includes(name),
+      ),
+    { timeout: 10_000 },
+    "Zoya Outsider",
+  );
+  const assignedNamed = await page.evaluate((name) => {
+    const row = [...document.querySelectorAll('[data-testid="assign-result"]')].find((el) =>
+      (el.textContent ?? "").includes(name),
+    );
+    const button = row?.querySelector('[data-testid="assign-button"]') as HTMLButtonElement | null;
+    if (!button) return false;
+    button.click();
+    return true;
+  }, "Zoya Outsider");
+  if (!assignedNamed) throw new Error("No assign button on the Zoya Outsider result");
   await page.waitForFunction(
     () => /Zoya Outsider/.test(document.querySelector('[data-testid="trainer-roster"]')?.textContent ?? ""),
-    { timeout: 10_000 },
+    { timeout: 15_000 },
   );
   checkEqual("assignment row written in MySQL", assignmentCount(demoProfileId, zoya.id), 1);
   await screenshot(page, "phase9-02-assigned-zoya");
