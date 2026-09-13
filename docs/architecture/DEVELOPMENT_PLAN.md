@@ -39,7 +39,7 @@ committed.
 | 12 | Notifications + Redis/BullMQ | Done |
 | 13 | Flutter member **web** (Chrome) | **Done** |
 | 14 | Android / iOS packaging + runtime | **In progress** (not Done) |
-| 15 | Super Admin / SaaS | **In progress** — 15.1–15.13 Done; 15.9 Chrome + admin-web e2e re-run 2026-09-13; **10.20 still open** |
+| 15 | Super Admin / SaaS | **Done** (2026-09-14) — 10.20 checked; Super Admin headed Chrome + admin-web 3–13 re-verified |
 
 Phase 14 remaining blockers: **no production API host**, **no macOS/Xcode for iOS**.
 Android force-stop session restore: **PASS** (real device, Alice Home, no login screen).
@@ -1336,8 +1336,9 @@ browser — both must be listed, or a Flutter `web-hostname` of one will fail CO
 
 ### 1.24 Super Admin / SaaS semantics
 
-Implemented as slices **15.1–15.13** (Section 7). Phase 15 itself is **not Done** — Section
-**10.20** stays unchecked until the remaining verification boxes are accepted. Gym-member
+Implemented as slices **15.1–15.13** (Section 7). Phase 15 is **Done** (2026-09-14) —
+Section **10.20** checked after Super Admin headed Chrome and admin-web 3–13 re-verification.
+Gym-member
 `Payment` / `Invoice` rows stay gym billing (Phase 6). They are not the Vedafit software
 subscription. Seed still creates Demo Gym + OWNER; public signup and Super Admin create also
 call `provisionOrganization`.
@@ -1438,7 +1439,7 @@ Shipped as 15.1–15.13 (Section 7 / 10.19). This list is history, not a start s
 6. Only then: PSP billing, if still wanted.
 
 The long-form implementation plan (tables, endpoints, slices, DoD, open decisions) is
-**Section 10**. Slices 15.1–15.13 are implemented; Phase 15 DoD is still **10.20**.
+**Section 10**. Slices 15.1–15.13 are implemented; Phase 15 DoD (**10.20**) is checked.
 
 ---
 
@@ -2862,9 +2863,9 @@ slices start automatically.
 - [x] Plan entitlements reject over-limit writes (15.6)
 - [x] Super Admin can list orgs, suspend/restore (`OrganizationStatus`), assign a plan
       (API: 15.7–15.8; Super Admin UI: 15.9 Done)
-- [ ] No Stripe/PSP required for the first Done of this phase
-**Status:** **In progress** — slices **15.1–15.13 Done**. Phase 15 itself is **not Done**.
-Stopped after 15.13; 10.20 checkboxes and “later” items wait for explicit approval.
+- [x] No Stripe/PSP required for the first Done of this phase
+**Status:** **Done** (2026-09-14). Slices **15.1–15.13** implemented; Section **10.20** checked.
+“Later” items (PSP, OpenAPI, iOS, production host) stay out of this DoD.
 Full plan: **Section 10**.
 
 #### Phase 15.1 — Platform identity
@@ -3538,8 +3539,9 @@ Verify column in 10.19 is **CI**.
 
 **E2E:** 10.17 cross-gym flow ran as Supertest in `phase15.regression.test.ts` (CI).
 **2026-09-13 headed re-run:** `phase3`–`phase7` and `phase11` passed against the post-SaaS
-API. `phase8`/`9`/`10`/`12`/`13` did not finish clean (Section 9). 10.20’s “existing e2e
-still pass” box stays **unchecked**.
+API. `phase8`/`9`/`10`/`12`/`13` did not finish clean that day (Section 9).
+**2026-09-14 close-out:** those five were diagnosed and re-run green. None were Phase 15
+regressions (Section 9, 2026-09-14). 10.20’s “existing e2e still pass” box is **checked**.
 
 **CI:** `.github/workflows/ci.yml` already runs lint + typecheck + `pnpm --filter="./apps/*" run test`
 (api, admin-web, super-admin) against MySQL 3307 + Redis. New Vitest files are picked
@@ -3554,11 +3556,10 @@ calls. Behavior unchanged.
 `POST /auth/login` → 200; Alice `+919111100001` and Bob `+919111100002` ACTIVE.
 Payments 2, attendances 4. No gym_dev reset.
 
-**Deviations:** Chrome re-run is partial (Section 9, 2026-09-13). No Flutter
-`ACCOUNT_INACTIVE` mapping test (optional; no mapped message).
+**Deviations:** 2026-09-13 Chrome re-run was partial; closed 2026-09-14 (Section 9).
+No Flutter `ACCOUNT_INACTIVE` mapping test (optional; no mapped message).
 
-**Next slice:** **15.13** Production hardening (CORS, cookie Secure, env) — **not**
-cloud deploy. Do not start without explicit approval.
+**Next slice:** **15.13** was the last implementation slice (Done 2026-09-13).
 
 #### Phase 15.13 — Production hardening (CORS, cookie Secure, env)
 **Status:** Done (2026-09-13)
@@ -3602,8 +3603,10 @@ Vitest files are included. GitHub Actions was **not** run (no push). No deploy j
 **Deviations:** none. Production Secure is proven via exported option helpers +
 Set-Cookie serialization, not by flipping the process `NODE_ENV` for the live app.
 
-**Next:** do **not** mark Phase 15 Done. Do not check 10.20. Do not start “later”
-(PSP, OpenAPI, iOS, production host) or Phase 16 without explicit approval.
+**Next:** Phase 15 is **Done** (2026-09-14). Do not start “later” (PSP, OpenAPI, iOS,
+production host) or Phase 16 without explicit approval. Super Admin responsive retrofit
+and admin-web Slices 3/5 stay queued — write a plan first; Super Admin mobile use is
+an open question (10.22).
 
 ---
 
@@ -3625,6 +3628,34 @@ Set-Cookie serialization, not by flipping the process `NODE_ENV` for the live ap
 
 ## 9. Decision Changes Log
 
+- **2026-09-14:** Phase 15 **Done.** Section **10.20** checked. Super Admin headed Chrome
+  (`pnpm --filter super-admin e2e`, **40/0**, 2026-09-13) plus a full admin-web **3–13**
+  re-verification (2026-09-14) meet the same bar as prior phases. The five 2026-09-13
+  failures were **not Phase 15 regressions** — each had a proven, pre-existing cause:
+  - **Phase 8** TRAINER widget: harness SQL counted the gym-wide (branch) headcount;
+    `report.service` applies Phase 9 own-roster (`resolveOwnRoster`). Evidence: roster **1**
+    vs gym-wide **41**. `assertEntitlement` and `/auth/me` `saas` are not on that path.
+  - **Phase 9** assign timeout: search `"Zoya"` hit leftover **Zoya Convert** (`+9192222…`)
+    from a prior Phase 10 convert; the first `assign-button` wrote that assignment, so the
+    roster never showed **Zoya Outsider**. Trainer assign has no entitlement check.
+  - **Phase 10** fixture FK: `member.deleteMany` on `+9192222…` convert leftovers (and the
+    Phase 9 wrong assignment) without walking invoices / payments / memberships /
+    `trainer_assignments` / notification logs / portal tokens. Same teardown class as
+    Phases 5/6, not a Phase 15 schema change.
+  - **Phase 12** SENT wait: BullMQ had already written `MEMBERSHIP_EXPIRING:SENT` and
+    `PAYMENT_DUE:SENT` in MySQL while the harness waited on a stale React Query list
+    (crowded leftover history / 429 on refetch). `notificationService.run` does not call
+    `assertEntitlement`. Demo Gym stayed `growth` / `ACTIVE`.
+  - **Phase 13** Flutter: `flutter run -d web-server` prints `Waiting for connection from
+    debug service…` as its steady state; HTTP `:8080` was already 200. Puppeteer
+    `waitUntil: "load"` never resolves against that debug server; `domcontentloaded` +
+    headed Chrome is the honest ready check.
+  Closing counts (re-run 2026-09-14 unless noted): Super Admin **40/0** (13th);
+  admin-web 8 **56/0**, 9 **47/0**, 10 **42/0**, 12 **24/0**, 13 **20/0**; 3–7 and 11
+  already green on the 13th. Tenant org-status PATCH (`.strict()`, 400 if `status` is
+  smuggled) and the TTL-after-suspend tradeoff stay as recorded 2026-09-13. Super Admin
+  responsive retrofit and admin-web Slices 3/5 stay **queued** — 10.22 is design only;
+  Super Admin mobile use is an open question before any UI work.
 - **2026-09-13:** Section **1.24** and **Section 10** titles said “design only / not
   implemented” after 15.1–15.13 had already shipped. Corrected the headers to match Section 7.
   No semantic change to the locked decisions.
@@ -4264,8 +4295,7 @@ Set-Cookie serialization, not by flipping the process `NODE_ENV` for the live ap
 ## 10. Phase 15 Implementation Plan
 
 **Status of this section:** written 2026-09-09 as design, before 15.1. Slices **15.1–15.13**
-are implemented (Section 7). This is no longer a “do not start” banner. Phase 15 itself is
-still **In progress** until **10.20** is checked.
+are implemented (Section 7). Phase 15 is **Done** (2026-09-14); **10.20** is checked.
 
 This plan extends Locked Decision **1.24**. It fits the code that exists today:
 `authenticate` / `authenticateMember`, `tenantScope`, `requirePermission`, nested
@@ -4707,31 +4737,31 @@ Each slice independently verifiable. Stop between slices for review.
 | 15.13 | Production hardening (CORS, cookie Secure, env) — **not** cloud deploy | — |
 | later | PSP, saas_invoices, platform roles, OpenAPI, iOS, production host | out of Phase 15 DoD |
 
-**Progress (2026-09-13):** 15.1–15.13 Done (15.2 is identity-as-permission, no extra tables).
-15.9 headed Chrome (`pnpm --filter super-admin e2e`, 40/0). Admin-web `phase3`–`phase7` and
-`phase11` re-ran green; `phase8`/`9`/`10`/`12`/`13` did not finish clean (see Section 9,
-2026-09-13). **Next:** 10.20 Phase 15 DoD (still unchecked). Super Admin responsive retrofit
-and admin-web Slices 3/5 stay queued. Do not start “later” items or Phase 16 without approval.
+**Progress (2026-09-14):** 15.1–15.13 Done (15.2 is identity-as-permission, no extra tables).
+15.9 headed Chrome (`pnpm --filter super-admin e2e`, 40/0). Admin-web 3–13 re-verified
+green; the five 2026-09-13 failures were pre-existing harness/fixture issues (Section 9).
+**10.20 checked. Phase 15 Done.** Super Admin responsive retrofit and admin-web Slices 3/5
+stay queued (10.22). Do not start “later” items or Phase 16 without approval.
 
 ### 10.20 Definition of Done
 
-Not “it compiles.” Phase 15 is Done when **all** of these are true:
+Not “it compiles.” Phase 15 is Done when **all** of these are true. **Checked 2026-09-14.**
 
-- [ ] Migration applied; Demo Gym + Alice/Bob fixtures still work
-- [ ] Platform operator can sign in; staff/member JWTs cannot call `/platform/*`
-- [ ] `POST /platform/signup` creates org+branch+OWNER+matrix+templates+trial subscription in
+- [x] Migration applied; Demo Gym + Alice/Bob fixtures still work
+- [x] Platform operator can sign in; staff/member JWTs cannot call `/platform/*`
+- [x] `POST /platform/signup` creates org+branch+OWNER+matrix+templates+trial subscription in
       one transaction; a forced failure leaves nothing
-- [ ] New OWNER logs in through **existing** `POST /auth/login`
-- [ ] Super Admin lists both gyms; gym A staff cannot read gym B
-- [ ] Members remain self-scoped (`/me/*`)
-- [ ] Entitlements enforced server-side (`PLAN_LIMIT_REACHED` / `FEATURE_DISABLED`)
-- [ ] Super Admin can suspend/restore; suspended gym staff and members cannot log in
-- [ ] Platform mutations write `platform_audit_logs`
-- [ ] Gym `Payment`/`Invoice` rows are unchanged by SaaS actions
-- [ ] `apps/admin-web` existing e2e still pass
-- [ ] `apps/member-app` still builds; no required new member screens
-- [ ] No Stripe/PSP required
-- [ ] No `isSuperAdmin` on `users`
+- [x] New OWNER logs in through **existing** `POST /auth/login`
+- [x] Super Admin lists both gyms; gym A staff cannot read gym B
+- [x] Members remain self-scoped (`/me/*`)
+- [x] Entitlements enforced server-side (`PLAN_LIMIT_REACHED` / `FEATURE_DISABLED`)
+- [x] Super Admin can suspend/restore; suspended gym staff and members cannot log in
+- [x] Platform mutations write `platform_audit_logs`
+- [x] Gym `Payment`/`Invoice` rows are unchanged by SaaS actions
+- [x] `apps/admin-web` existing e2e still pass
+- [x] `apps/member-app` still builds; no required new member screens
+- [x] No Stripe/PSP required
+- [x] No `isSuperAdmin` on `users`
 
 ### 10.21 Risks and decisions requiring approval
 
@@ -4750,6 +4780,40 @@ Not “it compiles.” Phase 15 is Done when **all** of these are true:
 8. **Starting Phase 15 while Phase 14 DoD is open** — allowed (additive) but **not automatic**.
    Production API and iOS stay their own later work. Android force-stop session restore is
    still a Phase 14 checkbox, not a Phase 15 item.
+9. **Super Admin on a phone** — `apps/super-admin` is a backoffice fleet tool (list orgs,
+   suspend, assign plan). If operators only ever use it at a desk, the responsive retrofit
+   can stay deferred indefinitely. Do not spend the Wave 1/2 copy without answering this.
 
-End of Section 10. Slices 15.1–15.13 are implemented. Do not start “later” items or Phase 16
+### 10.22 Queued UI (design only — do not start)
+
+Written 2026-09-14 after Phase 15 close-out. **Not started.** Same pattern as the admin-web
+responsive pass: plan first, then an explicit go.
+
+**Gate (answer before any Super Admin UI work):** is Super Admin expected on a phone at all?
+A yes means copy admin-web’s already-shipped primitives (`DataTable`, `SELECT_CONTROL_CLASS`
+/ `form-control`, collapsible `AppShell`) onto `:5174` so native `<select>` / raw tables /
+a non-collapsing rail are not the phone experience. A no (desk-only backoffice) is a
+legitimate reason to leave Super Admin at desktop indefinitely and pick admin-web Slices
+3/5 (dashboard type scale, form density) as polish on a surface that already works on
+mobile.
+
+**If the gate is yes — Super Admin retrofit (preferred order only after that yes):**
+
+| Slice | Scope | Proof |
+|---|---|---|
+| SA-1 | Shell: collapsible sidebar + drawer at ~375, persist collapse at 768/1440. Reuse admin-web `useSidebarNav` pattern, do not invent a second rail. | Super Admin e2e still 40/0; add a narrow-viewport smoke (login + org list visible, no horizontal page scroll). |
+| SA-2 | Lists: wrap org / plan tables in the shared `DataTable` (sticky first column, overflow fade). Do not rewrite rows into cards. | Existing `data-testid`s stay on the `<table>`; headed list/suspend/assign still match MySQL. |
+| SA-3 | Forms + filters: `SELECT_CONTROL_CLASS` / `TextField` already used in admin-web; Super Admin `Select` must not stay a naked native control. | Create-org + assign-plan still work in the existing Super Admin harness. |
+
+**If the gate is no — admin-web Slices 3/5 instead:**
+
+| Slice | Scope | Proof |
+|---|---|---|
+| AW-3 | Dashboard type scale (widget values / headings at 375 without overflow). | `pnpm e2e:dashboard` still matches SQL; visual check at 375. |
+| AW-5 | Form density (stacked labels, no clipped primary actions on member/plan/trainer create). | Existing phase 4–6 / 9 harnesses still green. |
+
+**Do not:** start PSP, OpenAPI, Phase 16, or Super Admin `DataTable` imports until the
+gate is answered. Do not treat this subsection as approval to code.
+
+End of Section 10. Phase 15 is **Done**. Do not start “later” items or Phase 16
 without explicit approval.
