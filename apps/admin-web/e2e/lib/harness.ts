@@ -43,7 +43,15 @@ export async function launch(): Promise<Browser> {
     executablePath: findChrome(),
     headless: process.env.E2E_HEADFUL === "1" ? false : true,
     defaultViewport: { width: 1440, height: 900 },
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      // Flutter Web / CanvasKit needs a GL implementation in headless Chrome.
+      "--enable-webgl",
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      ...(process.env.E2E_CHROME_ARGS?.split(/\s+/).filter(Boolean) ?? []),
+    ],
   });
 }
 
@@ -132,8 +140,8 @@ export async function computed(
 }
 
 export async function screenshot(page: Page, name: string): Promise<string> {
-  await mkdir(SHOT_DIR, { recursive: true });
   const path = join(SHOT_DIR, `${name}.png`);
+  await mkdir(dirname(path), { recursive: true });
   await page.screenshot({ path: path as `${string}.png`, fullPage: false });
   return path;
 }

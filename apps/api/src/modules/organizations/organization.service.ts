@@ -61,4 +61,13 @@ export const organizationService = {
     await organizationService.getById(id);
     return prisma.organization.update({ where: { id }, data: input });
   },
+
+  /**
+   * Platform-only lifecycle switch (Phase 15.7). Writes `organizations.status` and nothing else —
+   * subscription TRIAL/ACTIVE/PAST_DUE/CANCELLED stays on `organization_subscriptions` (10.13).
+   */
+  async setStatus(id: string, status: "ACTIVE" | "SUSPENDED") {
+    await organizationService.getById(id);
+    return prisma.organization.update({ where: { id }, data: { status } });
+  },
 };

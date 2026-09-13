@@ -14,7 +14,12 @@ type MemberParams = { organizationId: string; memberId: string };
  */
 function scopeFrom(req: Request): MemberScope {
   const auth = getAuth(req);
-  return { organizationId: auth.organizationId, branchId: auth.branchId };
+  return {
+    organizationId: auth.organizationId,
+    branchId: auth.branchId,
+    userId: auth.userId,
+    roleId: auth.roleId,
+  };
 }
 
 export const memberController = {

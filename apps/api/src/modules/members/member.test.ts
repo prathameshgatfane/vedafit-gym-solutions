@@ -207,7 +207,12 @@ describe("members module — duplicate phone (Locked Decision 1.3)", () => {
   it("race condition: two concurrent creates with the same phone — exactly one wins", async () => {
     // The check-then-create window that Locked Decision 1.3's org row lock exists to close.
     const phone = `+9198${Date.now().toString().slice(-8)}`;
-    const scope = { organizationId: tenant.organization.id, branchId: null };
+    const scope = {
+      organizationId: tenant.organization.id,
+      branchId: null,
+      userId: owner.user.id,
+      roleId: tenant.roleIdByName.get("OWNER")!,
+    };
 
     const results = await Promise.allSettled([
       memberService.create(scope, {
@@ -529,15 +534,24 @@ describe("members module — RBAC (Section 4.2 matrix)", () => {
     expect(listed.status).toBe(200);
   });
 
-  it("blocks an ACCOUNTANT from the module entirely", async () => {
+  /**
+   * Widened in Phase 6: an invoice is raised against a member, so the role whose job is raising
+   * invoices has to be able to look one up. Read only — the roster is still the front desk's.
+   */
+  it("lets an ACCOUNTANT read the roster but not change it", async () => {
     const accountant = await createActor(tenant, "ACCOUNTANT");
 
-    const res = await request(app)
+    const listed = await request(app)
       .get(membersUrl(accountant))
       .set(...bearer(accountant));
+    expect(listed.status).toBe(200);
 
-    expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe("PERMISSION_DENIED");
+    const created = await request(app)
+      .post(membersUrl(accountant))
+      .set(...bearer(accountant))
+      .send(newMember({ firstName: "Not", lastName: "Mine" }));
+    expect(created.status).toBe(403);
+    expect(created.body.error.code).toBe("PERMISSION_DENIED");
   });
 
   it("requires authentication", async () => {

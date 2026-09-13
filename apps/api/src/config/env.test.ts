@@ -36,7 +36,12 @@ describe("loadEnv", () => {
     expect(env.LOG_LEVEL).toBe("info"); // default applied
     expect(env.JWT_ACCESS_TTL).toBe("15m"); // default applied
     expect(env.REFRESH_TOKEN_TTL_DAYS).toBe(30); // default applied
-    expect(env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS).toBe(5); // default applied
+    expect(env.SIGNUP_RATE_LIMIT_MAX).toBe(5);
+    expect(env.SIGNUP_RATE_LIMIT_WINDOW_MINUTES).toBe(15);
+    expect(env.SAAS_TRIAL_DAYS).toBe(14);
+    expect(env.REDIS_URL).toBe("redis://127.0.0.1:6379");
+    expect(env.NOTIFICATION_ATTEMPTS).toBe(3);
+    expect(env.NIGHTLY_LOCAL_HOUR).toBe(21);
   });
 
   it("rejects a non-numeric PORT", () => {
@@ -51,5 +56,25 @@ describe("loadEnv", () => {
 
   it("rejects a JWT_SECRET shorter than 32 characters", () => {
     expect(() => loadEnv({ ...requiredEnv, JWT_SECRET: "too-short" })).toThrow(/JWT_SECRET/);
+  });
+
+  it("rejects a credentialed wildcard CORS_ORIGIN of *", () => {
+    expect(() => loadEnv({ ...requiredEnv, CORS_ORIGIN: "*" })).toThrow(/CORS_ORIGIN/);
+  });
+
+  it("rejects * as one entry in a comma-separated CORS allowlist", () => {
+    expect(() =>
+      loadEnv({ ...requiredEnv, CORS_ORIGIN: "http://localhost:5173, * " }),
+    ).toThrow(/CORS_ORIGIN/);
+  });
+
+  it("accepts a comma-separated allowlist of real browser origins", () => {
+    const env = loadEnv({
+      ...requiredEnv,
+      CORS_ORIGIN:
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://localhost:8080",
+    });
+    expect(env.CORS_ORIGIN).toContain("5174");
+    expect(env.CORS_ORIGIN).toContain("8080");
   });
 });

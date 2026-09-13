@@ -316,7 +316,7 @@ async function main(): Promise<number> {
     // ---------------------------------------------------------------------
     api.reset();
     const logoutMark = Date.now();
-    await page.click('[data-testid="app-topbar"] button');
+    await page.click('[data-testid="sign-out"]');
     await page.waitForSelector('input[type="password"]', { timeout: 10_000 });
 
     checkEqual("URL after sign out", new URL(page.url()).pathname, "/login");

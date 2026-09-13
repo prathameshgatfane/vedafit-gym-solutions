@@ -47,6 +47,52 @@ export const loginRateLimiter = rateLimit({
  * Same idea for the reset-request endpoint, which is otherwise a free way to spam someone's inbox
  * (and, once Phase 12 wires real email, to burn send quota).
  */
+export const memberLoginRateLimiter = rateLimit({
+  windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+  limit: env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const phone = (req.body as { phone?: unknown } | undefined)?.phone;
+    const phoneKey = typeof phone === "string" ? phone.trim() : "<none>";
+    return `member-login:${req.ip ?? "unknown-ip"}:${phoneKey}`;
+  },
+  handler: (req, _res, next) => {
+    logger.warn({ ip: req.ip }, "Member login rate limit exceeded");
+    next(
+      new AppError(
+        429,
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        "Too many failed login attempts. Try again later.",
+      ),
+    );
+  },
+});
+
+export const platformLoginRateLimiter = rateLimit({
+  windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+  limit: env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const email = (req.body as { email?: unknown } | undefined)?.email;
+    const emailKey = typeof email === "string" ? email.trim().toLowerCase() : "<none>";
+    return `platform-login:${req.ip ?? "unknown-ip"}:${emailKey}`;
+  },
+  handler: (req, _res, next) => {
+    logger.warn({ ip: req.ip }, "Platform login rate limit exceeded");
+    next(
+      new AppError(
+        429,
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        "Too many failed login attempts. Try again later.",
+      ),
+    );
+  },
+});
+
 export const forgotPasswordRateLimiter = rateLimit({
   windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
   limit: env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS,

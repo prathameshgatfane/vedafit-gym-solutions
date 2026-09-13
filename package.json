@@ -11,7 +11,8 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "dev:api": "pnpm --filter api dev",
-    "dev:admin-web": "pnpm --filter admin-web dev"
+    "dev:admin-web": "pnpm --filter admin-web dev",
+    "dev:super-admin": "pnpm --filter super-admin dev"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

@@ -15,8 +15,20 @@ const envSchema = z.object({
     .default("development"),
   // Required: every environment must explicitly state which port to bind to.
   PORT: z.coerce.number().int().positive(),
-  // Required: which origin(s) the admin-web app is served from, for CORS.
-  CORS_ORIGIN: z.string().min(1, "CORS_ORIGIN must not be empty"),
+  // Required: comma-separated browser origins (admin-web, super-admin, Flutter Web).
+  // Credentialed CORS cannot use `*` (1.23.5). localhost and 127.0.0.1 are distinct.
+  CORS_ORIGIN: z
+    .string()
+    .min(1, "CORS_ORIGIN must not be empty")
+    .refine(
+      (value) =>
+        !value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean)
+          .some((origin) => origin === "*"),
+      "CORS_ORIGIN cannot include * while credentialed requests are enabled",
+    ),
   // Required: MySQL connection string. Also read directly by Prisma via its own env lookup,
   // but we validate it here too so a missing/malformed value fails fast with our error format
   // instead of a raw Prisma connector error deep in the first query.
@@ -44,9 +56,24 @@ const envSchema = z.object({
   // Number of failed logins (per IP + email) before the login endpoint starts returning 429.
   LOGIN_RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  // Public gym signup (Phase 15.4). Per-IP, including successful creates — org-spam brake.
+  SIGNUP_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  SIGNUP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  // Public signup trial length (Phase 15.5). Catalog `trialDays` is metadata; this drives period end.
+  SAAS_TRIAL_DAYS: z.coerce.number().int().positive().default(14),
   // Coarse per-IP ceiling across the whole API. Raised in the test env, where the entire suite
   // hits the server from one address.
   GLOBAL_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
+  // ── Notifications / queue (Phase 12) ────────────────────────────────────────
+  // Redis is required the same way MySQL is: the nightly job and the send worker
+  // are not optional adapters. Default matches docker-compose and the no-Docker sandbox.
+  REDIS_URL: z.string().min(1).default("redis://127.0.0.1:6379"),
+  // BullMQ key prefix so a test run cannot consume a dev queue (1.22.3).
+  QUEUE_PREFIX: z.string().min(1).default("gym"),
+  NOTIFICATION_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+  NOTIFICATION_BACKOFF_MS: z.coerce.number().int().min(1).default(10_000),
+  NIGHTLY_LOCAL_HOUR: z.coerce.number().int().min(0).max(23).default(21),
 });
 
 export type Env = z.infer<typeof envSchema>;

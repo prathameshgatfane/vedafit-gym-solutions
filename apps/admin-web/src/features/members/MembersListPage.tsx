@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
+import { DataTable } from "../../components/ui/DataTable";
 import { Select } from "../../components/ui/Select";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { TextField } from "../../components/ui/TextField";
@@ -41,6 +42,10 @@ export function MembersListPage() {
   const navigate = useNavigate();
   const { params, setParams, reset } = useListParams();
   const canCreate = useSessionStore((s) => s.hasPermission("members.create"));
+  // Same discriminator as the API (1.19.1): view without mark is own-roster, not a role name.
+  const canViewAttendance = useSessionStore((s) => s.hasPermission("attendance.view"));
+  const canMarkAttendance = useSessionStore((s) => s.hasPermission("attendance.mark"));
+  const ownRoster = canViewAttendance && !canMarkAttendance;
 
   // The input is uncontrolled by the URL while typing, then debounced into it — otherwise every
   // keystroke would be a request and a history write.
@@ -64,7 +69,7 @@ export function MembersListPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-white">Members</h1>
           <p className="mt-1 text-sm text-brand-green-muted">
@@ -80,11 +85,20 @@ export function MembersListPage() {
         ) : null}
       </div>
 
+      {ownRoster ? (
+        <p
+          data-testid="own-roster-banner"
+          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+        >
+          This list is the members assigned to you — not the gym&apos;s full roster.
+        </p>
+      ) : null}
+
       <div
         data-testid="members-filter-bar"
-        className="flex flex-wrap items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
       >
-        <div className="min-w-56 flex-1">
+        <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
             label="Search"
             type="search"
@@ -127,7 +141,7 @@ export function MembersListPage() {
         />
 
         {hasFilters ? (
-          <Button variant="secondary" onClick={reset}>
+          <Button variant="secondary" className="col-span-2 md:col-auto" onClick={reset}>
             Clear filters
           </Button>
         ) : null}
@@ -139,7 +153,7 @@ export function MembersListPage() {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-brand-white/10">
+      <DataTable>
         <table data-testid="members-table" className="w-full text-left text-sm">
           <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
             <tr>
@@ -166,7 +180,11 @@ export function MembersListPage() {
             ) : members.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
-                  {hasFilters ? "No members match those filters." : "No members yet."}
+                  {hasFilters
+                    ? "No members match those filters."
+                    : ownRoster
+                      ? "No members assigned to you yet."
+                      : "No members yet."}
                 </td>
               </tr>
             ) : (
@@ -193,10 +211,10 @@ export function MembersListPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </DataTable>
 
       {pagination && pagination.totalPages > 1 ? (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
             Page {pagination.page} of {pagination.totalPages}
           </p>

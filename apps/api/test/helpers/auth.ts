@@ -6,7 +6,13 @@ import {
   syncOrganizationRoleMatrix,
   syncPermissionCatalog,
 } from "../../src/lib/rbac-catalog";
-import { REFRESH_COOKIE_NAME } from "../../src/modules/auth/auth.controller";
+import { ensureDefaultTemplates } from "../../src/services/notification/templates";
+import {
+  SAAS_PLAN_CODE,
+  ensureOrganizationSubscription,
+  syncSaasPlanCatalog,
+} from "../../src/modules/saas/saas-catalog";
+import { REFRESH_COOKIE_NAME, PLATFORM_REFRESH_COOKIE_NAME } from "../../src/modules/auth/auth.controller";
 import { app } from "./app";
 import { uniqueSuffix } from "./fixtures";
 
@@ -27,6 +33,7 @@ export interface TestTenant {
  */
 export async function createTestTenant(namePrefix = "Tenant"): Promise<TestTenant> {
   await syncPermissionCatalog();
+  await syncSaasPlanCatalog();
 
   const suffix = uniqueSuffix();
   const organization = await prisma.organization.create({
@@ -38,11 +45,18 @@ export async function createTestTenant(namePrefix = "Tenant"): Promise<TestTenan
     },
   });
 
+  await ensureOrganizationSubscription(organization.id, {
+    planCode: SAAS_PLAN_CODE.GROWTH,
+    status: "ACTIVE",
+    billingInterval: "YEARLY",
+  });
+
   const branch = await prisma.branch.create({
     data: { id: generateId(), organizationId: organization.id, name: `Branch ${suffix}` },
   });
 
   const roleIdByName = await syncOrganizationRoleMatrix(organization.id);
+  await ensureDefaultTemplates(organization.id);
 
   return { organization, branch, roleIdByName };
 }
@@ -133,4 +147,56 @@ export async function createActorInNewTenant(
 /** `Authorization` header value for supertest: `.set(...bearer(actor))`. */
 export function bearer(actor: TestActor): [string, string] {
   return ["Authorization", `Bearer ${actor.accessToken}`];
+}
+
+export interface TestPlatformOperator {
+  user: { id: string; name: string; email: string };
+  password: string;
+  accessToken: string;
+  refreshCookie: string;
+  refreshToken: string;
+}
+
+export function platformRefreshCookieFrom(res: request.Response): string {
+  const raw = res.headers["set-cookie"] as unknown as string[] | undefined;
+  const cookie = raw?.find((c) => c.startsWith(`${PLATFORM_REFRESH_COOKIE_NAME}=`));
+  if (!cookie) {
+    throw new Error(`Response did not set a ${PLATFORM_REFRESH_COOKIE_NAME} cookie`);
+  }
+  return cookie;
+}
+
+export function platformRefreshTokenValueFrom(res: request.Response): string {
+  const cookie = platformRefreshCookieFrom(res);
+  return decodeURIComponent(cookie.split(";")[0]!.split("=")[1]!);
+}
+
+/** Creates a platform operator and logs in through POST /auth/platform/login. */
+export async function createPlatformOperator(): Promise<TestPlatformOperator> {
+  const suffix = uniqueSuffix();
+  const email = `platform-${suffix}@vedafit.test`;
+  const user = await prisma.platformUser.create({
+    data: {
+      id: generateId(),
+      name: `Operator ${suffix}`,
+      email,
+      passwordHash: await hashPassword(TEST_PASSWORD),
+    },
+  });
+
+  const res = await request(app)
+    .post("/api/v1/auth/platform/login")
+    .send({ email, password: TEST_PASSWORD });
+
+  if (res.status !== 200) {
+    throw new Error(`Platform test login failed (${res.status}): ${JSON.stringify(res.body)}`);
+  }
+
+  return {
+    user,
+    password: TEST_PASSWORD,
+    accessToken: res.body.data.accessToken as string,
+    refreshCookie: platformRefreshCookieFrom(res),
+    refreshToken: platformRefreshTokenValueFrom(res),
+  };
 }

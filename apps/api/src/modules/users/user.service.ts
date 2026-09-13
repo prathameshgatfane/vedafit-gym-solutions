@@ -7,6 +7,8 @@ import { buildPaginationMeta, paginationSkipTake } from "../../utils/pagination"
 import type { CreateUserInput, UpdateUserInput, listUsersQuerySchema } from "./user.schema";
 import type { z } from "zod";
 import { organizationService } from "../organizations/organization.service";
+import { SAAS_ENTITLEMENT_KEY } from "../saas/saas-catalog";
+import { assertEntitlement } from "../saas/saas-entitlements.service";
 
 type ListQuery = z.infer<typeof listUsersQuerySchema>;
 
@@ -54,6 +56,7 @@ export const userService = {
 
     const user = await prisma.$transaction(async (tx) => {
       await lockOrganizationForWrite(tx, organizationId);
+      await assertEntitlement(organizationId, SAAS_ENTITLEMENT_KEY.STAFF_MAX, { db: tx });
       await assertRoleAndBranchBelongToOrg(tx, organizationId, input.roleId, input.branchId);
 
       const existing = await tx.user.findFirst({

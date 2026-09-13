@@ -1,13 +1,20 @@
 import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler";
-import { authenticate } from "../../middleware/auth.middleware";
+import { authenticate, authenticateMember, authenticatePlatform } from "../../middleware/auth.middleware";
 import { validate } from "../../middleware/validation.middleware";
 import { authController } from "./auth.controller";
-import { forgotPasswordRateLimiter, loginRateLimiter } from "./auth.rate-limit";
+import {
+  forgotPasswordRateLimiter,
+  loginRateLimiter,
+  memberLoginRateLimiter,
+  platformLoginRateLimiter,
+} from "./auth.rate-limit";
 import {
   forgotPasswordSchema,
   loginSchema,
   logoutSchema,
+  memberLoginSchema,
+  platformLoginSchema,
   refreshSchema,
   resetPasswordSchema,
 } from "./auth.schema";
@@ -51,3 +58,39 @@ authRouter.post(
 // Authenticated. No tenantScope: /me has no client-supplied org or branch to reject — the whole
 // response is derived from the token.
 authRouter.get("/me", authenticate, asyncHandler(authController.me));
+
+authRouter.post(
+  "/member/login",
+  memberLoginRateLimiter,
+  validate(memberLoginSchema, "body"),
+  asyncHandler(authController.memberLogin),
+);
+authRouter.post(
+  "/member/refresh",
+  validate(refreshSchema, "body"),
+  asyncHandler(authController.memberRefresh),
+);
+authRouter.post(
+  "/member/logout",
+  validate(logoutSchema, "body"),
+  asyncHandler(authController.memberLogout),
+);
+authRouter.get("/member/me", authenticateMember, asyncHandler(authController.memberMe));
+
+authRouter.post(
+  "/platform/login",
+  platformLoginRateLimiter,
+  validate(platformLoginSchema, "body"),
+  asyncHandler(authController.platformLogin),
+);
+authRouter.post(
+  "/platform/refresh",
+  validate(refreshSchema, "body"),
+  asyncHandler(authController.platformRefresh),
+);
+authRouter.post(
+  "/platform/logout",
+  validate(logoutSchema, "body"),
+  asyncHandler(authController.platformLogout),
+);
+authRouter.get("/platform/me", authenticatePlatform, asyncHandler(authController.platformMe));

@@ -50,3 +50,48 @@ export function requirePermission(...anyOf: string[]) {
     }
   };
 }
+
+/**
+ * "Every one of these is required", for an action that is genuinely two operations behind one
+ * button — mid-term plan changes cancel a term *and* sell a new one (Locked Decision 1.15.4).
+ * The default matrix happens to grant those together, but `roles.manage` lets an organization
+ * build custom roles where it doesn't, and the guard should reflect what the handler actually does.
+ */
+export function requireAllPermissions(...allOf: string[]) {
+  if (allOf.length === 0) {
+    throw new Error("requireAllPermissions() needs at least one permission key");
+  }
+
+  return async function permissionGuard(
+    req: Request,
+    _res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const auth = getAuth(req);
+
+      const granted = await prisma.rolePermission.findMany({
+        where: { roleId: auth.roleId, permission: { key: { in: allOf } } },
+        select: { permission: { select: { key: true } } },
+      });
+
+      const heldKeys = new Set(granted.map((row) => row.permission.key));
+      const missing = allOf.filter((key) => !heldKeys.has(key));
+
+      if (missing.length > 0) {
+        next(
+          new AppError(
+            403,
+            ErrorCode.PERMISSION_DENIED,
+            `This role lacks the required permission: ${missing.join(" and ")}`,
+          ),
+        );
+        return;
+      }
+
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}

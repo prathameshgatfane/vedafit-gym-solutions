@@ -10,6 +10,8 @@ import { errorMiddleware } from "./middleware/error.middleware";
 import { authRouter } from "./modules/auth/auth.routes";
 import { organizationRouter } from "./modules/organizations/organization.routes";
 import { permissionRouter } from "./modules/permissions/permission.routes";
+import { platformRouter } from "./modules/platform/platform.routes";
+import { portalRouter } from "./modules/portal/portal.routes";
 
 /**
  * Builds the Express app. Kept separate from server.ts (which actually binds a port) so
@@ -24,7 +26,15 @@ export function createApp() {
   app.set("trust proxy", 1);
 
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  const corsOrigins = env.CORS_ORIGIN.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.use(
+    cors({
+      origin: corsOrigins.length <= 1 ? (corsOrigins[0] ?? env.CORS_ORIGIN) : corsOrigins,
+      credentials: true,
+    }),
+  );
   app.use(express.json());
   // Reads the httpOnly refresh cookie on /auth/refresh and /auth/logout.
   app.use(cookieParser());
@@ -54,11 +64,16 @@ export function createApp() {
   // applies `authenticate` itself).
   app.use("/api/v1/auth", authRouter);
 
+  // Public platform signup (15.4) plus per-route authenticatePlatform (15.7/15.8).
+  // Must not use tenantScope — URL organizationId is a resource id (10.5).
+  app.use("/api/v1/platform", platformRouter);
+
   // Feature modules. Each router applies `authenticate` + `tenantScope` + `requirePermission`
   // internally rather than relying on a mount-level guard here, so a route can't be added later
   // that silently skips them.
   app.use("/api/v1/organizations", organizationRouter);
   app.use("/api/v1/permissions", permissionRouter);
+  app.use("/api/v1/me", portalRouter);
 
   // 404 for anything else.
   app.use((_req: Request, res: Response) => {

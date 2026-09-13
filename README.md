@@ -24,6 +24,8 @@ docs/
 
 - Node.js 20.x
 - pnpm 10.x (`corepack enable` or `npm i -g pnpm`)
+- Flutter 3.44+ on `PATH` for `apps/member-app` (Web/Chrome). Android/iOS toolchains are
+  Phase 14; this repo's sandbox verifies Chrome only.
 
 ## Getting started
 
@@ -35,6 +37,9 @@ pnpm -F api dev
 
 # Run the Admin web app in dev mode
 pnpm -F admin-web dev
+
+# Member Flutter app (Web/Chrome) — not a pnpm workspace package
+cd apps/member-app && flutter run -d chrome --web-port 8080
 ```
 
 Each app has its own `.env.example` — copy it to `.env` in the same directory before running:
@@ -61,6 +66,20 @@ apps/api/scripts/dev-mysql-sandbox.sh start   # init + start, creates gym_dev + 
 apps/api/scripts/dev-mysql-sandbox.sh status
 apps/api/scripts/dev-mysql-sandbox.sh stop
 ```
+
+### Local Redis (Phase 12)
+
+The nightly notification job and the send worker need Redis. Same two paths as MySQL:
+`docker compose` (service `redis` on 6379) or the no-Docker sandbox:
+
+```bash
+apps/api/scripts/dev-redis-sandbox.sh start   # unpacks the Ubuntu .deb under /tmp if needed
+apps/api/scripts/dev-redis-sandbox.sh status
+apps/api/scripts/dev-redis-sandbox.sh stop
+```
+
+`REDIS_URL` defaults to `redis://127.0.0.1:6379` either way. `pnpm test` for `apps/api` now
+hits a real queue (prefix `gym-test`); Redis must be up or the Phase 12 tests hang on connect.
 
 Then run migrations/seed:
 
@@ -90,19 +109,17 @@ pnpm typecheck    # typecheck all workspaces
 pnpm test         # test all workspaces
 ```
 
-Note: `pnpm test` for `apps/api` runs against a real MySQL database (`gym_test`), so one of the
-two options above must be running first.
+Note: `pnpm test` for `apps/api` runs against a real MySQL database (`gym_test`) **and** a real
+Redis on 6379 (Phase 12's BullMQ worker), so both sandboxes — or `docker compose` — must be up.
 
 ## Current status
 
-Phases 0–4 done: repo/tooling scaffold, the Prisma schema with the
-Organization/Branch/User/Role/Permission modules, auth (login, refresh with rotation and
-reuse detection, logout, `/me`, password reset) with tenant and permission middleware enforced on
-every module route, an admin UI that can log in and render an authenticated shell, and full member
-CRUD — list with search/filter/sort/pagination, create, view, edit and archive — from both the API
-and the UI. See [`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md)
-for the exact status of every phase.
+Phases 0–13 done (admin API + admin-web through notifications, plus the member Flutter
+portal on Web/Chrome). See
+[`docs/architecture/DEVELOPMENT_PLAN.md`](docs/architecture/DEVELOPMENT_PLAN.md) for the
+exact status of every phase.
 
-To use the admin UI, run the API and `apps/admin-web` (`pnpm dev` in each) and sign in at
-http://localhost:5173 with the seeded credentials above. Memberships, payments and attendance
-arrive in Phases 5-7.
+Admin UI: API + `apps/admin-web` (`pnpm dev` in each), http://localhost:5173, seeded staff
+above. Member portal: `cd apps/member-app && flutter run -d chrome --web-port 8080`, then
+`+919111100001` / `ChangeMe123!` / `demo-gym` after `pnpm tsx scripts/phase13-fixtures.ts`
+in `apps/api`. Phase 14 is Android/iOS builds.

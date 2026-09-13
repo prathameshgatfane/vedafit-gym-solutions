@@ -12,6 +12,19 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const platformLoginSchema = z.object({
+  email: z.string().trim().toLowerCase().email("A valid email is required"),
+  password: z.string().min(1, "Password is required"),
+});
+export type PlatformLoginInput = z.infer<typeof platformLoginSchema>;
+
+export const memberLoginSchema = z.object({
+  phone: z.string().trim().min(8, "Phone is required"),
+  password: z.string().min(1, "Password is required"),
+  organizationSlug: z.string().trim().min(1, "Organization is required"),
+});
+export type MemberLoginInput = z.infer<typeof memberLoginSchema>;
+
 /**
  * The refresh token normally arrives in the httpOnly cookie. The body field exists for
  * non-browser clients (the Flutter app in Phase 13, scripts, tests) that have nowhere to put a

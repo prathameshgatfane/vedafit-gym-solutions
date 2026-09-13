@@ -69,22 +69,103 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+// Why a check-in was recorded without a covering membership (Locked Decision 1.17.1). An enum
+// rather than a boolean because "never had one" and "forgot to unfreeze" are different problems.
+enum AttendanceOverrideReason {
+  NO_MEMBERSHIP
+  EXPIRED
+  FROZEN
+  CANCELLED
+  NOT_STARTED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  TRIAL_SCHEDULED
+  CONVERTED
+  LOST
+}
+
+enum ExpenseCategory {
+  RENT
+  UTILITIES
+  SALARIES
+  EQUIPMENT
+  MARKETING
+  SOFTWARE
+  MAINTENANCE
+  SUPPLIES
+  PROFESSIONAL_FEES
+  OTHER
+}
+
+enum NotificationEvent {
+  MEMBERSHIP_EXPIRING
+  PAYMENT_DUE
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum NotificationLogStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum NotificationEntityType {
+  MEMBERSHIP
+  INVOICE
+}
+
+enum SaasEntitlementValueType {
+  BOOLEAN
+  LIMIT
+  UNLIMITED
+}
+
+enum OrganizationSubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum SaasBillingInterval {
+  MONTHLY
+  YEARLY
+}
+
 // ── Core tenancy ─────────────────────────────────────────
 model Organization {
-  id        String             @id @db.Char(26)
-  name      String
-  slug      String             @unique
-  email     String
-  phone     String?
-  status    OrganizationStatus @default(ACTIVE)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id     String             @id @db.Char(26)
+  name   String
+  slug   String             @unique
+  email  String
+  phone  String?
+  status OrganizationStatus @default(ACTIVE)
+  // IANA zone name. Added in Phase 7: an attendance "day" is only meaningful in the gym's own
+  // timezone, and taking the UTC day files a 5 AM IST check-in under yesterday (1.17.4).
+  timezone  String   @default("Asia/Kolkata") @db.VarChar(64)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  branches Branch[]
-  users    User[]
-  roles    Role[]
-  members  Member[]
-  plans    MembershipPlan[]
+  branches    Branch[]
+  users       User[]
+  roles       Role[]
+  members     Member[]
+  plans       MembershipPlan[]
+  attendances Attendance[]
+  trainerProfiles TrainerProfile[]
+  leads           Lead[]
+  expenses        Expense[]
+  notificationTemplates NotificationTemplate[]
+  notificationLogs      NotificationLog[]
+  subscription          OrganizationSubscription?
 
   @@map("organizations")
 }
@@ -103,6 +184,10 @@ model Branch {
   members      Member[]
   memberships  Membership[]
   attendances  Attendance[]
+  invoices     Invoice[]
+  payments     Payment[]
+  leads        Lead[]
+  expenses     Expense[]
 
   @@index([organizationId])
   @@map("branches")
@@ -122,10 +207,15 @@ model User {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  organization        Organization          @relation(fields: [organizationId], references: [id])
-  role                 Role                  @relation(fields: [roleId], references: [id])
-  refreshTokens        RefreshToken[]
-  passwordResetTokens  PasswordResetToken[]
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  role                Role                 @relation(fields: [roleId], references: [id])
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  markedAttendances   Attendance[]
+  trainerProfile         TrainerProfile?
+  trainerAssignmentsMade TrainerAssignment[] @relation("TrainerAssignmentsMade")
+  assignedLeads          Lead[]              @relation("LeadsAssigned")
+  expensesCreated        Expense[]           @relation("ExpensesCreated")
 
   @@index([organizationId, email]) // NOT unique — see Locked Decisions 1.3
   @@map("users")
@@ -134,7 +224,7 @@ model User {
 model Role {
   id             String   @id @db.Char(26)
   organizationId String   @db.Char(26)
-  name           String   // OWNER/ADMIN/MANAGER/RECEPTIONIST/TRAINER/ACCOUNTANT, or custom later
+  name           String // OWNER/ADMIN/MANAGER/RECEPTIONIST/TRAINER/ACCOUNTANT, or custom later
   createdAt      DateTime @default(now())
 
   organization Organization     @relation(fields: [organizationId], references: [id])
@@ -146,8 +236,8 @@ model Role {
 }
 
 model Permission {
-  id          String @id @db.Char(26)
-  key         String @unique // e.g. "members.create"
+  id          String  @id @db.Char(26)
+  key         String  @unique // e.g. "members.create"
   description String?
 
   roles RolePermission[]
@@ -176,6 +266,8 @@ model Member {
   phone          String
   email          String?
   dateOfBirth    DateTime?
+  // Null until the portal is enabled for this member (1.23.2). Never returned over the wire.
+  passwordHash   String?      @db.VarChar(60)
   status         MemberStatus @default(ACTIVE)
   deletedAt      DateTime?
   createdAt      DateTime     @default(now())
@@ -188,9 +280,152 @@ model Member {
   invoices     Invoice[]
   attendances  Attendance[]
   documents    MemberDocument[]
+  trainerAssignments TrainerAssignment[]
+  convertedFromLead  Lead?
+  notificationLogs   NotificationLog[]
+  refreshTokens      MemberRefreshToken[]
 
   @@index([organizationId, phone]) // NOT unique — see Locked Decisions 1.3
+  @@index([organizationId, branchId, status]) // branch headcount (1.18.3) and the members list
   @@map("members")
+}
+
+// 1:1 with User. Creating this row is what makes a roster exist (Locked Decision 1.19.3).
+model TrainerProfile {
+  id             String   @id @db.Char(26)
+  organizationId String   @db.Char(26)
+  userId         String   @unique @db.Char(26)
+  specialization String?  @db.VarChar(120)
+  // Stored, never computed against in this phase (1.19.3). Phase 11 is where non-member money
+  // gets a definition; inventing a commission run here would be a third revenue figure.
+  commissionPct  Decimal? @db.Decimal(5, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  user         User                @relation(fields: [userId], references: [id])
+  assignments  TrainerAssignment[]
+
+  @@index([organizationId])
+  @@map("trainer_profiles")
+}
+
+// Current ACL for 1.19.1, not a coaching history (1.19.2). Unassigning drops access, including
+// to that member's past check-ins.
+model TrainerAssignment {
+  id               String   @id @db.Char(26)
+  organizationId   String   @db.Char(26)
+  trainerProfileId String   @db.Char(26)
+  memberId         String   @db.Char(26)
+  assignedAt       DateTime @default(now())
+  assignedByUserId String   @db.Char(26)
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id])
+  member         Member         @relation(fields: [memberId], references: [id])
+  assignedBy     User           @relation("TrainerAssignmentsMade", fields: [assignedByUserId], references: [id])
+
+  @@unique([trainerProfileId, memberId])
+  @@index([organizationId, memberId])
+  @@index([trainerProfileId])
+  @@map("trainer_assignments")
+}
+
+// Locked Decision 1.20. Status-driven, no deletedAt. convertedMemberId is set only by convert.
+model Lead {
+  id                String     @id @db.Char(26)
+  organizationId    String     @db.Char(26)
+  branchId          String?    @db.Char(26)
+  name              String     @db.VarChar(120)
+  phone             String     @db.VarChar(20)
+  source            String?    @db.VarChar(60)
+  status            LeadStatus @default(NEW)
+  assignedToUserId  String?    @db.Char(26)
+  followUpAt        DateTime?
+  convertedMemberId String?    @unique @db.Char(26)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  branch          Branch?      @relation(fields: [branchId], references: [id])
+  assignedTo      User?        @relation("LeadsAssigned", fields: [assignedToUserId], references: [id])
+  convertedMember Member?      @relation(fields: [convertedMemberId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([organizationId, phone])
+  @@index([organizationId, branchId])
+  @@map("leads")
+}
+
+// Locked Decision 1.21. Category is an enum because the P&L groups by it (1.21.2).
+// expenseDate is a civil DATE the human typed, not an instant (1.21.4). updatedAt because
+// the row is editable (1.21.3). No deletedAt — hard delete.
+model Expense {
+  id              String          @id @db.Char(26)
+  organizationId  String          @db.Char(26)
+  branchId        String?         @db.Char(26)
+  category        ExpenseCategory
+  amount          Decimal         @db.Decimal(10, 2)
+  expenseDate     DateTime        @db.Date
+  paidTo          String?         @db.VarChar(120)
+  notes           String?         @db.VarChar(500)
+  createdByUserId String          @db.Char(26)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  createdBy    User         @relation("ExpensesCreated", fields: [createdByUserId], references: [id])
+
+  @@index([organizationId, expenseDate])
+  @@index([organizationId, branchId])
+  @@index([organizationId, category])
+  @@map("expenses")
+}
+
+// Locked Decision 1.22. Event/channel are enums because the scan switches on them (1.22.2).
+// One template per (org, event, channel); SMS is what this phase seeds.
+model NotificationTemplate {
+  id             String              @id @db.Char(26)
+  organizationId String              @db.Char(26)
+  event          NotificationEvent
+  channel        NotificationChannel
+  body           String              @db.VarChar(1000)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, event, channel])
+  @@map("notification_templates")
+}
+
+// The unique key is the idempotency lock (1.22.1): one intended send per
+// (event, entity, channel, gym-local day). body is the rendered text so the history
+// screen does not have to re-render against a template that may have changed since.
+model NotificationLog {
+  id             String                 @id @db.Char(26)
+  organizationId String                 @db.Char(26)
+  memberId       String?                @db.Char(26)
+  event          NotificationEvent
+  channel        NotificationChannel
+  status         NotificationLogStatus  @default(QUEUED)
+  entityType     NotificationEntityType
+  entityId       String                 @db.Char(26)
+  localDate      DateTime               @db.Date
+  body           String                 @db.VarChar(1000)
+  lastError      String?                @db.VarChar(500)
+  sentAt         DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  member       Member?      @relation(fields: [memberId], references: [id])
+
+  @@unique([organizationId, event, entityId, channel, localDate], map: "notification_logs_idempotency_key")
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([organizationId, event])
+  @@map("notification_logs")
 }
 
 model MembershipPlan {
@@ -216,19 +451,32 @@ model Membership {
   memberId               String           @db.Char(26)
   planId                 String           @db.Char(26)
   priceAtPurchase        Decimal          @db.Decimal(10, 2) // snapshot — see Section 3 rationale
-  durationDaysAtPurchase Int                                  // snapshot
+  durationDaysAtPurchase Int // snapshot
   startDate              DateTime
   endDate                DateTime
   status                 MembershipStatus @default(ACTIVE)
+  // Freeze bookkeeping — Locked Decision 1.15.2. The clock pauses while frozen, and that can't
+  // be derived after the fact, so both the current freeze and the running total are recorded.
+  frozenAt               DateTime? // set only while status = FROZEN
+  totalFrozenDays        Int              @default(0) // cumulative; endDate - totalFrozenDays = original term
+  // Term chain — Locked Decision 1.15.3/1.15.4. Renewals and plan changes create a new row; this
+  // points at the row it succeeded so the member's history is navigable, not inferred from dates.
+  previousMembershipId   String?          @db.Char(26)
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
-  branch   Branch         @relation(fields: [branchId], references: [id])
-  member   Member         @relation(fields: [memberId], references: [id])
-  plan     MembershipPlan @relation(fields: [planId], references: [id])
-  payments Payment[]
+  branch             Branch         @relation(fields: [branchId], references: [id])
+  member             Member         @relation(fields: [memberId], references: [id])
+  plan               MembershipPlan @relation(fields: [planId], references: [id])
+  previousMembership Membership?    @relation("MembershipChain", fields: [previousMembershipId], references: [id])
+  nextMemberships    Membership[]   @relation("MembershipChain")
+  payments           Payment[]
+  invoices           Invoice[]
+  attendances        Attendance[]
 
   @@index([organizationId, endDate]) // expiry queries
+  @@index([organizationId, memberId, status]) // "what is this member on right now"
+  @@index([organizationId, branchId, status, endDate]) // expiring-soon per branch (1.18.4)
   @@map("memberships")
 }
 
@@ -236,54 +484,120 @@ model Membership {
 // payment & invoice: no deletedAt, no free-form updatedAt mutation of amounts.
 // Corrections happen via new rows (refund/reversal) + AuditLog, per spec.
 model Payment {
-  id             String        @id @db.Char(26)
-  organizationId String        @db.Char(26)
-  memberId       String        @db.Char(26)
-  membershipId   String?       @db.Char(26)
-  invoiceId      String?       @db.Char(26) // links a payment to the invoice it's paying down
-  amount         Decimal       @db.Decimal(10, 2)
-  method         PaymentMethod
-  status         PaymentStatus @default(SUCCESS)
-  paidAt         DateTime      @default(now())
-  createdAt      DateTime      @default(now())
+  id                String        @id @db.Char(26)
+  organizationId    String        @db.Char(26)
+  // The branch that took the money, stamped from the invoice and never updated (1.18.2). Not
+  // derived from `member.branchId` at read time: that column is editable, so a member transfer
+  // would retroactively move historical revenue between branches.
+  branchId          String        @db.Char(26)
+  memberId          String        @db.Char(26)
+  membershipId      String?       @db.Char(26)
+  invoiceId         String?       @db.Char(26) // links a payment to the invoice it's paying down
+  // Negative on a refund row — see Locked Decision 1.16.3.
+  amount            Decimal       @db.Decimal(10, 2)
+  method            PaymentMethod
+  status            PaymentStatus @default(SUCCESS)
+  // A refund is a new row pointing at the payment it reverses; the original is never touched
+  // and keeps status SUCCESS (1.16.3). Non-null here + negative amount + REFUNDED = a reversal.
+  refundOfPaymentId String?       @db.Char(26)
+  paidAt            DateTime      @default(now())
+  createdAt         DateTime      @default(now())
 
-  member     Member      @relation(fields: [memberId], references: [id])
-  membership Membership? @relation(fields: [membershipId], references: [id])
-  invoice    Invoice?    @relation(fields: [invoiceId], references: [id])
+  branch          Branch      @relation(fields: [branchId], references: [id])
+  member          Member      @relation(fields: [memberId], references: [id])
+  membership      Membership? @relation(fields: [membershipId], references: [id])
+  invoice         Invoice?    @relation(fields: [invoiceId], references: [id])
+  refundOfPayment Payment?    @relation("PaymentRefunds", fields: [refundOfPaymentId], references: [id])
+  refunds         Payment[]   @relation("PaymentRefunds")
 
+  @@index([organizationId, paidAt]) // default list ordering
+  @@index([organizationId, memberId])
+  @@index([organizationId, branchId, paidAt]) // revenue for a branch over a period (1.18.1)
   @@map("payments")
 }
 
 model Invoice {
   id             String        @id @db.Char(26)
   organizationId String        @db.Char(26)
+  // The branch that raised the bill — the selling branch for a membership term, the member's
+  // branch for an ad-hoc one. Stamped once (1.18.2); see the Payment.branchId note.
+  branchId       String        @db.Char(26)
   memberId       String        @db.Char(26)
-  invoiceNumber  String        // human-readable, e.g. INV-2026-000123 — see Phase 6 notes
+  // The term this bill is for; null on an ad-hoc invoice (joining fee, personal training).
+  membershipId   String?       @db.Char(26)
+  invoiceNumber  String        @db.VarChar(32) // INV-2026-000123 — allocation in Locked Decision 1.16.4
+  // Immutable once written: what the member was billed, not what they owe (1.16.2).
   amountTotal    Decimal       @db.Decimal(10, 2)
-  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
+  // amountPaid / amountPending are a cached SUM over the payment rows, recomputed (never
+  // incremented) inside the same transaction as every payment write — Locked Decision 1.16.2.
+  amountPaid     Decimal       @default(0) @db.Decimal(10, 2)
   amountPending  Decimal       @db.Decimal(10, 2)
   status         InvoiceStatus @default(DRAFT)
+  // What the bill is for, when it isn't a membership term.
+  notes          String?       @db.VarChar(500)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  member   Member    @relation(fields: [memberId], references: [id])
-  payments Payment[]
+  branch     Branch      @relation(fields: [branchId], references: [id])
+  member     Member      @relation(fields: [memberId], references: [id])
+  membership Membership? @relation(fields: [membershipId], references: [id])
+  payments   Payment[]
 
   @@unique([organizationId, invoiceNumber])
+  @@index([organizationId, status]) // "who owes money"
+  @@index([organizationId, memberId])
+  @@index([organizationId, branchId, amountPending]) // outstanding fees for a branch (1.18.5)
   @@map("invoices")
 }
 
+// One counter row per organization per year, locked FOR UPDATE inside the invoice's own
+// transaction — Locked Decision 1.16.4. A separate table rather than MAX(invoiceNumber)+1 so the
+// lock is on a single row, and so a rolled-back invoice takes its increment down with it and
+// leaves no gap in the sequence.
+model InvoiceSequence {
+  organizationId String   @db.Char(26)
+  year           Int
+  nextValue      Int      @default(1)
+  updatedAt      DateTime @updatedAt
+
+  @@id([organizationId, year])
+  @@map("invoice_sequences")
+}
+
+// NOTE: amended in Phase 7 — 'attendanceDate', 'membershipId', 'overrideReason' and
+// 'markedByUserId' added. See Locked Decision 1.17 and the Section 9 entry.
 model Attendance {
   id             String   @id @db.Char(26)
   organizationId String   @db.Char(26)
   branchId       String   @db.Char(26)
   memberId       String   @db.Char(26)
-  checkedInAt    DateTime @default(now())
+  // When they arrived, exactly.
+  checkedInAt DateTime @default(now())
+  // Which day it counts as: the local calendar day in the organization's timezone (1.17.4).
+  // Derived once at write time — MySQL cannot index a timezone conversion.
+  attendanceDate DateTime @db.Date
+  // The term that covered this visit, or NULL when it was an override. Exactly one of this and
+  // `overrideReason` is set (1.17.1).
+  membershipId   String?                   @db.Char(26)
+  overrideReason AttendanceOverrideReason?
+  // The staff member who recorded it, from the JWT. NULL is reserved for Phase 13 self-service
+  // check-in, where there is no staff actor.
+  markedByUserId String? @db.Char(26)
 
-  branch Branch @relation(fields: [branchId], references: [id])
-  member Member @relation(fields: [memberId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  member       Member       @relation(fields: [memberId], references: [id])
+  membership   Membership?  @relation(fields: [membershipId], references: [id])
+  markedBy     User?        @relation(fields: [markedByUserId], references: [id])
 
+  // One check-in per member per day (1.17.2). A real constraint, not a check-then-insert: two
+  // taps on a slow connection are genuinely concurrent. Attendance rows are never deleted, so
+  // this carries none of the soft-delete problems Locked Decision 1.3 is about.
+  @@unique([memberId, attendanceDate])
   @@index([memberId, checkedInAt])
+  // The daily register, which is the screen this table exists for.
+  @@index([organizationId, branchId, attendanceDate])
+  @@index([organizationId, attendanceDate])
   @@map("attendances")
 }
 
@@ -328,6 +642,112 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Locked Decision 1.23.2 — same rotation/reuse rules as staff tokens, own table so
+// refresh_tokens.userId stays NOT NULL and staff auth queries stay simple.
+model MemberRefreshToken {
+  id        String    @id @db.Char(26)
+  memberId  String    @db.Char(26)
+  familyId  String    @db.Char(26)
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId])
+  @@index([familyId])
+  @@map("member_refresh_tokens")
+}
+
+// Locked Decision 1.24.1 / Phase 15.1 — third audience. Not a gym User (no organizationId)
+// and not a Member. Own refresh table so staff refresh_tokens.userId stays NOT NULL.
+model PlatformUser {
+  id           String     @id @db.Char(26)
+  name         String
+  email        String     @unique
+  passwordHash String     @db.VarChar(60)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  refreshTokens PlatformRefreshToken[]
+
+  @@map("platform_users")
+}
+
+model PlatformRefreshToken {
+  id             String    @id @db.Char(26)
+  platformUserId String    @db.Char(26)
+  familyId       String    @db.Char(26)
+  tokenHash      String    @unique @db.Char(64)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  platformUser PlatformUser @relation(fields: [platformUserId], references: [id])
+
+  @@index([platformUserId])
+  @@index([familyId])
+  @@map("platform_refresh_tokens")
+}
+
+// ── SaaS catalog (Phase 15.5) — platform software plans, not gym member billing ──
+model SaasPlan {
+  id           String   @id @db.Char(26)
+  code         String   @unique @db.VarChar(32)
+  name         String
+  description  String?
+  priceMonthly Decimal  @db.Decimal(10, 2)
+  priceYearly  Decimal  @db.Decimal(10, 2)
+  currency     String   @default("INR") @db.Char(3)
+  trialDays    Int
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entitlements  SaasPlanEntitlement[]
+  subscriptions OrganizationSubscription[]
+
+  @@map("saas_plans")
+}
+
+model SaasPlanEntitlement {
+  id        String                   @id @db.Char(26)
+  planId    String                   @db.Char(26)
+  key       String                   @db.VarChar(64)
+  valueType SaasEntitlementValueType
+  intValue  Int?
+  boolValue Boolean?
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  plan SaasPlan @relation(fields: [planId], references: [id])
+
+  @@unique([planId, key])
+  @@index([planId])
+  @@map("saas_plan_entitlements")
+}
+
+model OrganizationSubscription {
+  id                 String                         @id @db.Char(26)
+  organizationId     String                         @unique @db.Char(26)
+  planId             String                         @db.Char(26)
+  status             OrganizationSubscriptionStatus
+  billingInterval    SaasBillingInterval
+  priceSnapshot      Decimal                        @db.Decimal(10, 2)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  plan         SaasPlan     @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+  @@map("organization_subscriptions")
+}
+
 model PasswordResetToken {
   id        String    @id @db.Char(26)
   userId    String    @db.Char(26)
@@ -347,13 +767,35 @@ model AuditLog {
   id             String   @id @db.Char(26)
   organizationId String   @db.Char(26)
   actorUserId    String?  @db.Char(26)
-  entityType     String   // e.g. "Payment", "Membership"
+  entityType     String // e.g. "Payment", "Membership"
   entityId       String
-  action         String   // e.g. "REFUND", "STATUS_CHANGE"
+  action         String // e.g. "REFUND", "STATUS_CHANGE"
   beforeJson     Json?
   afterJson      Json?
   createdAt      DateTime @default(now())
 
   @@index([organizationId, entityType, entityId])
   @@map("audit_logs")
+}
+
+// Phase 15.11 / Section 10.6 — platform fleet audit. Not gym `audit_logs`
+// (`organizationId` there is required and would force a fake org). organizationId here is a
+// target/resource id, not a tenant claim. platformUserId is null for public ORG_SIGNUP.
+// Append-only: no deletedAt, no update/delete API.
+model PlatformAuditLog {
+  id             String   @id @db.Char(26)
+  platformUserId String?  @db.Char(26)
+  organizationId String?  @db.Char(26)
+  entityType     String
+  entityId       String
+  action         String
+  beforeJson     Json?
+  afterJson      Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
+  @@index([platformUserId])
+  @@index([entityType, entityId])
+  @@map("platform_audit_logs")
 }

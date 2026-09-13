@@ -10,6 +10,7 @@ env:
   # (apps/api/scripts/dev-mysql-sandbox.sh) so `pnpm test` behaves identically everywhere.
   DATABASE_URL: "mysql://gym_app:gym_app_dev_pw@127.0.0.1:3307/gym_test"
   MYSQL_ROOT_PASSWORD: root_ci_pw
+  REDIS_URL: "redis://127.0.0.1:6379"
 
 jobs:
   lint-typecheck-test:
@@ -36,6 +37,18 @@ jobs:
           --health-timeout=5s
           --health-retries=15
           --health-start-period=30s
+
+      # Mirrors infrastructure/docker/docker-compose.yml: Redis 7, published on 6379.
+      # Phase 12's notification tests enqueue a real BullMQ job and wait for the worker.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Checkout

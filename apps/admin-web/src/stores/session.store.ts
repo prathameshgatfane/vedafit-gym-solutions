@@ -17,6 +17,11 @@ export interface SessionOrganization {
   email: string;
   phone: string | null;
   status: "ACTIVE" | "SUSPENDED";
+  /**
+   * IANA zone. The clock the gym runs on, which is not necessarily the browser's — attendance
+   * times and the register's "today" are read in this zone (Locked Decision 1.17.4).
+   */
+  timezone: string;
 }
 
 export interface SessionBranch {

@@ -2,6 +2,9 @@ import { Prisma, type Member } from "@prisma/client";
 import { prisma, withGeneratedId, type TransactionClient } from "../../lib/prisma";
 import { AppError } from "../../lib/app-error";
 import { ErrorCode } from "../../lib/error-codes";
+import { resolveOwnRoster, rosterAllows } from "../../lib/own-roster";
+import { SAAS_ENTITLEMENT_KEY } from "../saas/saas-catalog";
+import { assertEntitlement } from "../saas/saas-entitlements.service";
 import { buildPaginationMeta, paginationSkipTake } from "../../utils/pagination";
 import type {
   CreateMemberInput,
@@ -17,6 +20,8 @@ import type {
 export interface MemberScope {
   organizationId: string;
   branchId: string | null;
+  userId: string;
+  roleId: string;
 }
 
 /**
@@ -87,13 +92,13 @@ function toDateOfBirth(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-export interface MemberResponse extends Omit<Member, "dateOfBirth" | "deletedAt"> {
+export interface MemberResponse extends Omit<Member, "dateOfBirth" | "deletedAt" | "passwordHash"> {
   /** Serialized back as `YYYY-MM-DD` for the same reason it's parsed that way. */
   dateOfBirth: string | null;
 }
 
 function toResponse(member: Member): MemberResponse {
-  const { deletedAt: _deletedAt, dateOfBirth, ...rest } = member;
+  const { deletedAt: _deletedAt, dateOfBirth, passwordHash: _passwordHash, ...rest } = member;
   return {
     ...rest,
     dateOfBirth: dateOfBirth ? dateOfBirth.toISOString().slice(0, 10) : null,
@@ -113,6 +118,7 @@ export const memberService = {
   async create(scope: MemberScope, input: CreateMemberInput): Promise<MemberResponse> {
     const member = await prisma.$transaction(async (tx) => {
       await lockOrganizationForWrite(tx, scope.organizationId);
+      await assertEntitlement(scope.organizationId, SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { db: tx });
       await assertBranchBelongsToOrg(tx, scope.organizationId, input.branchId);
       await assertPhoneIsFree(tx, scope.organizationId, input.phone);
 
@@ -133,12 +139,21 @@ export const memberService = {
   },
 
   async list(scope: MemberScope, query: ListMembersQuery) {
+    const roster = await resolveOwnRoster(scope);
+    if (roster.restricted && roster.memberIds.length === 0) {
+      return {
+        items: [],
+        pagination: buildPaginationMeta(query.page, query.limit, 0),
+      };
+    }
+
     const search = query.search;
 
     const where: Prisma.MemberWhereInput = {
       organizationId: scope.organizationId,
       deletedAt: null,
       branchId: resolveBranchFilter(scope, query.branchId),
+      id: roster.restricted ? { in: roster.memberIds } : undefined,
       // No status filter means "everyone currently on the books" — archived members are the
       // long tail and would otherwise crowd out the list staff actually work from. Ask for them
       // explicitly with `?status=ARCHIVED`.
@@ -171,6 +186,11 @@ export const memberService = {
   },
 
   async getById(scope: MemberScope, memberId: string): Promise<MemberResponse> {
+    const roster = await resolveOwnRoster(scope);
+    if (!rosterAllows(roster, memberId)) {
+      throw AppError.notFound(ErrorCode.MEMBER_NOT_FOUND, `Member "${memberId}" not found`);
+    }
+
     const member = await prisma.member.findFirst({
       where: {
         id: memberId,
@@ -271,3 +291,28 @@ export const memberService = {
     return toResponse(member);
   },
 };
+
+/**
+ * Used by lead conversion so the member write and the lead's CONVERTED stamp share one
+ * transaction (1.20.2). The caller is expected to have already locked the organization row.
+ */
+export async function createMemberInTransaction(
+  tx: TransactionClient,
+  organizationId: string,
+  input: CreateMemberInput,
+): Promise<Member> {
+  await assertEntitlement(organizationId, SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { db: tx });
+  await assertBranchBelongsToOrg(tx, organizationId, input.branchId);
+  await assertPhoneIsFree(tx, organizationId, input.phone);
+  return tx.member.create({
+    data: withGeneratedId({
+      organizationId,
+      branchId: input.branchId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      email: input.email ?? null,
+      dateOfBirth: input.dateOfBirth ? toDateOfBirth(input.dateOfBirth) : null,
+    }),
+  });
+}

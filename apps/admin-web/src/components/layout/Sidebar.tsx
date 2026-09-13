@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useSessionStore } from "../../stores/session.store";
+import { NavIcon } from "./nav-icons";
 
 interface NavItem {
   to: string;
@@ -13,59 +15,140 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", permission: null },
   { to: "/members", label: "Members", permission: "members.view" },
-  { to: "/memberships", label: "Memberships", permission: "memberships.create", comingSoon: true },
-  { to: "/payments", label: "Payments", permission: "payments.view", comingSoon: true },
+  { to: "/memberships", label: "Memberships", permission: "memberships.view" },
+  { to: "/membership-plans", label: "Plans", permission: "membership-plans.view" },
+  { to: "/attendance", label: "Attendance", permission: "attendance.view" },
+  { to: "/trainers", label: "Trainers", permission: "trainers.manage" },
+  { to: "/leads", label: "Leads", permission: "leads.manage" },
+  { to: "/invoices", label: "Invoices", permission: "invoices.view" },
+  { to: "/payments", label: "Payments", permission: "payments.view" },
+  { to: "/expenses", label: "Expenses", permission: "expenses.manage" },
+  { to: "/reports", label: "Reports", permission: "reports.view" },
+  { to: "/notifications", label: "Notifications", permission: "notifications.manage" },
   { to: "/staff", label: "Staff", permission: "users.manage", comingSoon: true },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  mdUp: boolean;
+  collapsed: boolean;
+  mobileOpen: boolean;
+  onToggleCollapsed: () => void;
+  onNavigate: () => void;
+}
+
+export function Sidebar({
+  mdUp,
+  collapsed,
+  mobileOpen,
+  onToggleCollapsed,
+  onNavigate,
+}: SidebarProps) {
   const organization = useSessionStore((s) => s.organization);
   const hasPermission = useSessionStore((s) => s.hasPermission);
+  const asideRef = useRef<HTMLElement>(null);
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => item.permission === null || hasPermission(item.permission),
   );
 
+  // Drawer shows full labels; icon-only is a desktop preference only.
+  const showLabels = !mdUp || !collapsed;
+
+  useEffect(() => {
+    if (!mdUp && mobileOpen) asideRef.current?.focus();
+  }, [mdUp, mobileOpen]);
+
   return (
     <aside
+      ref={asideRef}
+      id="app-sidebar"
       data-testid="app-sidebar"
-      className="flex w-60 shrink-0 flex-col border-r border-brand-white/10 bg-brand-black-88"
+      tabIndex={-1}
+      aria-hidden={!mdUp && !mobileOpen}
+      className={[
+        "flex shrink-0 flex-col border-r border-brand-white/10 bg-brand-black-88 outline-none",
+        "fixed inset-y-0 left-0 z-40 w-60 transition-transform duration-200",
+        "md:static md:z-0 md:translate-x-0 md:pointer-events-auto",
+        mdUp && collapsed ? "md:w-16" : "md:w-60",
+        !mdUp && !mobileOpen
+          ? "pointer-events-none -translate-x-full"
+          : "translate-x-0",
+      ].join(" ")}
     >
-      <div className="flex h-16 items-center gap-2 border-b border-brand-white/10 px-5">
-        <span className="h-2.5 w-2.5 rounded-full bg-brand-green" aria-hidden="true" />
-        <span className="truncate text-sm font-semibold text-brand-white">
-          {organization?.name ?? "Gym Admin"}
-        </span>
+      <div
+        className={[
+          "flex h-16 items-center border-b border-brand-white/10",
+          showLabels ? "gap-2 px-4" : "justify-center px-2",
+        ].join(" ")}
+      >
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand-green" aria-hidden="true" />
+        {showLabels ? (
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-white">
+            {organization?.name ?? "Gym Admin"}
+          </span>
+        ) : (
+          <span className="sr-only">{organization?.name ?? "Gym Admin"}</span>
+        )}
+        <button
+          type="button"
+          data-testid="sidebar-toggle"
+          className="hidden rounded-md p-1.5 text-brand-white/70 hover:bg-brand-white/5 hover:text-brand-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-green md:inline-flex"
+          aria-expanded={!collapsed}
+          aria-controls="app-sidebar"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={onToggleCollapsed}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            aria-hidden="true"
+          >
+            {collapsed ? (
+              <path d="M9 6l6 6-6 6" />
+            ) : (
+              <path d="M15 6l-6 6 6 6" />
+            )}
+          </svg>
+        </button>
       </div>
 
-      <nav aria-label="Main" className="flex flex-1 flex-col gap-1 p-3">
+      <nav aria-label="Main" className="flex flex-1 flex-col gap-1 p-2">
         {visibleItems.map((item) =>
           item.comingSoon ? (
             <span
               key={item.to}
               aria-disabled="true"
               title="Available in a later phase"
-              className="cursor-not-allowed rounded-md px-3 py-2 text-sm text-brand-white/35"
+              className={[
+                "flex cursor-not-allowed items-center rounded-md py-2 text-sm text-brand-white/35",
+                showLabels ? "gap-3 px-3" : "justify-center px-2",
+              ].join(" ")}
             >
-              {item.label}
+              <NavIcon to={item.to} />
+              {showLabels ? item.label : <span className="sr-only">{item.label}</span>}
             </span>
           ) : (
             <NavLink
               key={item.to}
               to={item.to}
-              // Only the dashboard needs an exact match; a section stays highlighted while you're
-              // anywhere inside it (e.g. /members/:id).
               end={item.to === "/"}
+              title={showLabels ? undefined : item.label}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 [
-                  "rounded-md px-3 py-2 text-sm transition-colors",
+                  "flex items-center rounded-md py-2 text-sm transition-colors",
+                  showLabels ? "gap-3 px-3" : "justify-center px-2",
                   isActive
                     ? "bg-brand-green font-semibold text-brand-black"
                     : "text-brand-white/80 hover:bg-brand-white/5 hover:text-brand-white",
                 ].join(" ")
               }
             >
-              {item.label}
+              <NavIcon to={item.to} />
+              {showLabels ? item.label : <span className="sr-only">{item.label}</span>}
             </NavLink>
           ),
         )}

@@ -5,6 +5,8 @@ import { Spinner } from "../../components/ui/Spinner";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { apiErrorMessage } from "../../lib/api-client";
 import { useSessionStore } from "../../stores/session.store";
+import { MemberBillingPanel } from "../invoices/MemberBillingPanel";
+import { MemberMembershipsPanel } from "../memberships/MemberMembershipsPanel";
 import { useArchiveMember, useMember } from "./useMembers";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -23,6 +25,7 @@ export function MemberDetailPage() {
   const branches = useSessionStore((s) => s.branches);
   const canUpdate = useSessionStore((s) => s.hasPermission("members.update"));
   const canArchive = useSessionStore((s) => s.hasPermission("members.archive"));
+  const canViewInvoices = useSessionStore((s) => s.hasPermission("invoices.view"));
 
   const archiveMutation = useArchiveMember();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -136,9 +139,11 @@ export function MemberDetailPage() {
         <Field label="Last updated">{new Date(member.updatedAt).toLocaleDateString()}</Field>
       </dl>
 
-      <p className="text-sm text-brand-white/40">
-        Memberships, payments and attendance appear here in later phases.
-      </p>
+      <MemberMembershipsPanel memberId={member.id} canSell={!isArchived} />
+
+      {canViewInvoices ? <MemberBillingPanel memberId={member.id} /> : null}
+
+      <p className="text-sm text-brand-white/40">Attendance appears here in a later phase.</p>
     </div>
   );
 }

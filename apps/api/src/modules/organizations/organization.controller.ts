@@ -4,9 +4,9 @@ import type { UpdateOrganizationInput } from "./organization.schema";
 
 /**
  * No `create`/`list` handlers: organization creation and cross-org listing are not part of the
- * tenant-facing API. Orgs are bootstrapped by the seed script until Phase 15's super-admin layer
- * (Locked Decision 1.7), and `organizationService.create`/`list` remain available for the seed
- * script, tests, and that future phase. See Section 9 (2026-09-06).
+ * tenant-facing API. Orgs are bootstrapped by `provisionOrganization` (Phase 15.3) from the
+ * seed script; public signup and Super Admin create will call the same function later.
+ * `organizationService.create`/`list` remain available for tests and incomplete org rows.
  */
 export const organizationController = {
   async getById(req: Request<{ organizationId: string }>, res: Response) {

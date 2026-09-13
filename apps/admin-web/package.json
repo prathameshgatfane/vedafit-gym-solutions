@@ -11,7 +11,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "e2e": "tsx e2e/phase3-verify.ts",
-    "e2e:members": "tsx e2e/phase4-verify.ts"
+    "e2e:members": "tsx e2e/phase4-verify.ts",
+    "e2e:memberships": "tsx e2e/phase5-verify.ts",
+    "e2e:billing": "tsx e2e/phase6-verify.ts",
+    "e2e:attendance": "tsx e2e/phase7-verify.ts",
+    "e2e:dashboard": "tsx e2e/phase8-verify.ts",
+    "e2e:trainers": "tsx e2e/phase9-verify.ts",
+    "e2e:leads": "tsx e2e/phase10-verify.ts",
+    "e2e:expenses": "tsx e2e/phase11-verify.ts",
+    "e2e:notifications": "tsx e2e/phase12-verify.ts",
+    "e2e:member": "tsx e2e/phase13-verify.ts",
+    "e2e:responsive": "tsx e2e/responsive-verify.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -21,6 +31,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.87.0",
     "react-router-dom": "^7.18.3",
+    "recharts": "^2.15.4",
     "zod": "^3.24.1",
     "zustand": "^5.0.15"
   },

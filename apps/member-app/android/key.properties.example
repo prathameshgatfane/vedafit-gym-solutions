@@ -1,0 +1,6 @@
+# Copy to android/key.properties (gitignored) and point at a local .jks.
+# Never commit key.properties, *.jks, or *.keystore.
+storePassword=change-me
+keyPassword=change-me
+keyAlias=upload
+storeFile=upload-keystore.jks

@@ -6,6 +6,7 @@ import {
   bearer,
   createActor,
   createActorInNewTenant,
+  createPlatformOperator,
   createTestTenant,
   refreshCookieFrom,
   refreshTokenValueFrom,
@@ -15,6 +16,7 @@ import { generateId } from "../../lib/id";
 import { hashPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { signAccessToken } from "../../lib/jwt";
+import { SAAS_ENTITLEMENT_KEY, SAAS_PLAN_CODE } from "../saas/saas-catalog";
 import { REFRESH_COOKIE_NAME } from "./auth.controller";
 
 const AUTH = "/api/v1/auth";
@@ -147,14 +149,14 @@ describe("POST /auth/login", () => {
 });
 
 describe("GET /auth/me", () => {
-  it("returns { user, organization, branches } for a real seeded-style user", async () => {
+  it("returns { user, organization, branches, saas } for a real seeded-style user", async () => {
     const tenant = await createTestTenant("MeOrg");
     const actor = await createActor(tenant, "OWNER");
 
     const res = await request(app).get(`${AUTH}/me`).set(...bearer(actor));
 
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body.data).sort()).toEqual(["branches", "organization", "user"]);
+    expect(Object.keys(res.body.data).sort()).toEqual(["branches", "organization", "saas", "user"]);
 
     expect(res.body.data.user).toMatchObject({
       id: actor.user.id,
@@ -176,6 +178,26 @@ describe("GET /auth/me", () => {
 
     expect(res.body.data.branches).toHaveLength(1);
     expect(res.body.data.branches[0].id).toBe(tenant.branch.id);
+
+    const subscription = await prisma.organizationSubscription.findUniqueOrThrow({
+      where: { organizationId: tenant.organization.id },
+      include: { plan: true },
+    });
+    expect(res.body.data.saas).toMatchObject({
+      subscription: { id: subscription.id, status: "ACTIVE" },
+      plan: { id: subscription.plan.id, code: SAAS_PLAN_CODE.GROWTH, name: subscription.plan.name },
+    });
+    expect(res.body.data.saas.entitlements[SAAS_ENTITLEMENT_KEY.MEMBERS_MAX]).toEqual({
+      valueType: "UNLIMITED",
+      intValue: null,
+      boolValue: null,
+    });
+    expect(res.body.data.saas.entitlements[SAAS_ENTITLEMENT_KEY.LEADS]).toEqual({
+      valueType: "BOOLEAN",
+      intValue: null,
+      boolValue: true,
+    });
+    expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|refreshToken|refresh_token/);
   });
 
   it("limits `branches` to the caller's own branch when the user is branch-scoped", async () => {
@@ -225,6 +247,89 @@ describe("GET /auth/me", () => {
     const res = await request(app).get(`${AUTH}/me`).set("Authorization", `Bearer ${forged}`);
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe("INVALID_TOKEN");
+  });
+
+  it("returns the caller's own subscription and ignores a client organizationId", async () => {
+    const a = await createActorInNewTenant("OWNER", "SaasA");
+    const b = await createActorInNewTenant("OWNER", "SaasB");
+    const trial = await prisma.saasPlan.findUniqueOrThrow({ where: { code: SAAS_PLAN_CODE.TRIAL } });
+    await prisma.organizationSubscription.update({
+      where: { organizationId: b.organization.id },
+      data: { planId: trial.id, status: "TRIAL" },
+    });
+
+    const smuggled = await request(app)
+      .get(`${AUTH}/me`)
+      .query({ organizationId: b.organization.id })
+      .send({ organizationId: b.organization.id, planId: trial.id })
+      .set(...bearer(a));
+
+    expect(smuggled.status).toBe(200);
+    expect(smuggled.body.data.organization.id).toBe(a.organization.id);
+    expect(smuggled.body.data.saas.plan.code).toBe(SAAS_PLAN_CODE.GROWTH);
+    expect(smuggled.body.data.saas.subscription.status).toBe("ACTIVE");
+
+    const bMe = await request(app).get(`${AUTH}/me`).set(...bearer(b));
+    expect(bMe.status).toBe(200);
+    expect(bMe.body.data.organization.id).toBe(b.organization.id);
+    expect(bMe.body.data.saas.plan.code).toBe(SAAS_PLAN_CODE.TRIAL);
+    expect(bMe.body.data.saas.subscription.status).toBe("TRIAL");
+    expect(bMe.body.data.saas.entitlements[SAAS_ENTITLEMENT_KEY.MEMBERS_MAX]).toEqual({
+      valueType: "LIMIT",
+      intValue: 50,
+      boolValue: null,
+    });
+    expect(bMe.body.data.saas.subscription.id).not.toBe(smuggled.body.data.saas.subscription.id);
+  });
+
+  it("returns saas null when the organization has no subscription", async () => {
+    const actor = await createActorInNewTenant("OWNER", "NoSub");
+    await prisma.organizationSubscription.delete({
+      where: { organizationId: actor.organization.id },
+    });
+
+    const res = await request(app).get(`${AUTH}/me`).set(...bearer(actor));
+    expect(res.status).toBe(200);
+    expect(res.body.data.saas).toBeNull();
+    expect(res.body.data.organization.id).toBe(actor.organization.id);
+    expect(res.body.data.organization.slug).not.toBe("demo-gym");
+  });
+
+  it("does not add saas to member or platform /me", async () => {
+    const staff = await createActorInNewTenant("OWNER", "AudienceMe");
+    const phone = `+9197${uniqueSuffix().slice(0, 8)}`;
+    await prisma.member.create({
+      data: {
+        id: generateId(),
+        organizationId: staff.organization.id,
+        branchId: staff.branch.id,
+        firstName: "Keep",
+        lastName: "Isolated",
+        phone,
+        passwordHash: await hashPassword(TEST_PASSWORD),
+      },
+    });
+
+    const memberLogin = await request(app).post(`${AUTH}/member/login`).send({
+      phone,
+      password: TEST_PASSWORD,
+      organizationSlug: staff.organization.slug,
+    });
+    expect(memberLogin.status).toBe(200);
+    const memberMe = await request(app)
+      .get(`${AUTH}/member/me`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.accessToken}`);
+    expect(memberMe.status).toBe(200);
+    expect(memberMe.body.data).not.toHaveProperty("saas");
+    expect(Object.keys(memberMe.body.data).sort()).toEqual(["branch", "member", "organization"]);
+
+    const platform = await createPlatformOperator();
+    const platformMe = await request(app)
+      .get(`${AUTH}/platform/me`)
+      .set("Authorization", `Bearer ${platform.accessToken}`);
+    expect(platformMe.status).toBe(200);
+    expect(platformMe.body.data).not.toHaveProperty("saas");
+    expect(Object.keys(platformMe.body.data).sort()).toEqual(["user"]);
   });
 });
 

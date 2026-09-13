@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase 14 LAN sideload talks to the API over http://<LAN_IP>:4000.
+  Android 9+ blocks cleartext unless this is permitted. Production HTTPS
+  still uses system CAs. Turn cleartext off when a real HTTPS API exists —
+  this is not a license to ship HTTP in production.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,257 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../../components/ui/Button";
+import { DataTable } from "../../components/ui/DataTable";
+import { Select } from "../../components/ui/Select";
+import { StatusBadge } from "../../components/ui/StatusBadge";
+import { TextField } from "../../components/ui/TextField";
+import { apiErrorMessage } from "../../lib/api-client";
+import { useUrlListParams, type ListParamsConfig } from "../../lib/url-list-params";
+import {
+  DEFAULT_LEAD_LIST_PARAMS,
+  LEAD_STATUSES,
+  type LeadSortField,
+  type LeadStatus,
+} from "./lead.types";
+import { useLeadAssignees, useLeadList } from "./useLeads";
+
+const CONFIG: ListParamsConfig<LeadSortField, LeadStatus, "assignedToUserId"> = {
+  sortFields: ["createdAt", "followUpAt", "name"],
+  statuses: LEAD_STATUSES,
+  defaults: DEFAULT_LEAD_LIST_PARAMS,
+  extraKeys: ["assignedToUserId"],
+};
+
+const STATUS_OPTIONS = [
+  { value: "NEW", label: "New" },
+  { value: "CONTACTED", label: "Contacted" },
+  { value: "TRIAL_SCHEDULED", label: "Trial scheduled" },
+  { value: "CONVERTED", label: "Converted" },
+  { value: "LOST", label: "Lost" },
+];
+
+const SORT_OPTIONS: { value: LeadSortField; label: string }[] = [
+  { value: "createdAt", label: "Date added" },
+  { value: "followUpAt", label: "Follow-up" },
+  { value: "name", label: "Name" },
+];
+
+function pageSizeOptions(current: number) {
+  const sizes = [10, 25, 50].includes(current)
+    ? [10, 25, 50]
+    : [current, 10, 25, 50].sort((a, b) => a - b);
+  return sizes.map((size) => ({ value: String(size), label: `${size} per page` }));
+}
+
+function formatFollowUp(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function LeadsListPage() {
+  const navigate = useNavigate();
+  const { params, setParams, extras, setExtras, reset } = useUrlListParams(CONFIG);
+  const assignees = useLeadAssignees();
+
+  const [searchDraft, setSearchDraft] = useState(params.search);
+  useEffect(() => setSearchDraft(params.search), [params.search]);
+  useEffect(() => {
+    if (searchDraft === params.search) return;
+    const timer = setTimeout(() => setParams({ search: searchDraft }), 300);
+    return () => clearTimeout(timer);
+  }, [searchDraft, params.search, setParams]);
+
+  const query = { ...params, assignedToUserId: extras.assignedToUserId };
+  const { data, isPending, isFetching, isError, error } = useLeadList(query);
+  const leads = data?.items ?? [];
+  const pagination = data?.pagination;
+  const hasFilters =
+    params.search !== "" || params.status !== "" || extras.assignedToUserId !== "";
+
+  const assigneeOptions = (assignees.data ?? []).map((row) => ({
+    value: row.id,
+    label: row.name,
+  }));
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 data-testid="leads-heading" className="text-2xl font-semibold text-brand-white">
+            Leads
+          </h1>
+          <p className="mt-1 text-sm text-brand-green-muted">
+            {pagination
+              ? `${pagination.total} ${pagination.total === 1 ? "lead" : "leads"}${
+                  hasFilters ? " matching your filters" : ""
+                }`
+              : "Loading leads…"}
+          </p>
+        </div>
+        <Button data-testid="add-lead" onClick={() => navigate("/leads/new")}>
+          Add lead
+        </Button>
+      </div>
+
+      <div
+        data-testid="leads-filter-bar"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+      >
+        <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
+          <TextField
+            label="Search"
+            type="search"
+            placeholder="Name or phone"
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+          />
+        </div>
+        <Select
+          label="Status"
+          placeholder="Any status"
+          options={STATUS_OPTIONS}
+          value={params.status}
+          onChange={(event) =>
+            setParams({ status: (event.target.value || "") as LeadStatus | "" })
+          }
+        />
+        <Select
+          label="Assigned to"
+          placeholder="Anyone"
+          options={assigneeOptions}
+          value={extras.assignedToUserId}
+          onChange={(event) => setExtras({ assignedToUserId: event.target.value })}
+        />
+        <Select
+          label="Sort by"
+          options={SORT_OPTIONS}
+          value={params.sortBy}
+          onChange={(event) => setParams({ sortBy: event.target.value as LeadSortField })}
+        />
+        <Select
+          label="Order"
+          options={[
+            { value: "asc", label: "Ascending" },
+            { value: "desc", label: "Descending" },
+          ]}
+          value={params.sortOrder}
+          onChange={(event) =>
+            setParams({ sortOrder: event.target.value === "asc" ? "asc" : "desc" })
+          }
+        />
+        <Select
+          label="Page size"
+          options={pageSizeOptions(params.limit)}
+          value={String(params.limit)}
+          onChange={(event) => setParams({ limit: Number(event.target.value) })}
+        />
+        {hasFilters ? (
+          <Button variant="secondary" className="col-span-2 md:col-auto" onClick={reset}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
+      {isError ? (
+        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {apiErrorMessage(error, "Could not load leads.")}
+        </p>
+      ) : null}
+
+      <DataTable>
+        <table data-testid="leads-table" className="w-full text-left text-sm">
+          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+            <tr>
+              <th scope="col" className="px-4 py-3 font-medium">Name</th>
+              <th scope="col" className="px-4 py-3 font-medium">Phone</th>
+              <th scope="col" className="px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="px-4 py-3 font-medium">Assigned</th>
+              <th scope="col" className="px-4 py-3 font-medium">Follow-up</th>
+              <th scope="col" className="px-4 py-3 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody
+            className={`divide-y divide-brand-white/5 transition-opacity ${
+              isFetching && !isPending ? "opacity-60" : ""
+            }`}
+          >
+            {isPending ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                  Loading leads…
+                </td>
+              </tr>
+            ) : leads.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                  {hasFilters ? "No leads match those filters." : "No leads yet."}
+                </td>
+              </tr>
+            ) : (
+              leads.map((lead) => (
+                <tr
+                  key={lead.id}
+                  data-testid="lead-row"
+                  data-lead-id={lead.id}
+                  data-lead-status={lead.status}
+                  className="bg-brand-black hover:bg-brand-white/5"
+                >
+                  <td className="px-4 py-3 font-medium text-brand-white">{lead.name}</td>
+                  <td className="px-4 py-3 text-brand-white/70">{lead.phone}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={lead.status} />
+                  </td>
+                  <td className="px-4 py-3 text-brand-white/70">
+                    {lead.assignedTo?.name ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-brand-white/50">
+                    {formatFollowUp(lead.followUpAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => navigate(`/leads/${lead.id}`)}
+                      >
+                        Open
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </DataTable>
+
+      {pagination && pagination.totalPages > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
+            Page {pagination.page} of {pagination.totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={pagination.page <= 1}
+              onClick={() => setParams({ page: pagination.page - 1 })}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => setParams({ page: pagination.page + 1 })}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -64,6 +64,7 @@ export const testOrganization: SessionOrganization = {
   email: "hello@demo-gym.test",
   phone: "+911234567890",
   status: "ACTIVE",
+  timezone: "Asia/Kolkata",
 };
 
 export const testBranches: SessionBranch[] = [

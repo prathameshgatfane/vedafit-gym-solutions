@@ -36,13 +36,18 @@ function useOrganizationId(): string {
   return organizationId ?? "";
 }
 
-export function useMemberList(params: MemberListParams): UseQueryResult<MemberPage> {
+export function useMemberList(
+  params: MemberListParams,
+  /** For callers that only want the roster once the user has narrowed it — a search-first picker
+   *  shouldn't pull a page of members nobody asked to see. */
+  options: { enabled?: boolean } = {},
+): UseQueryResult<MemberPage> {
   const organizationId = useOrganizationId();
 
   return useQuery({
     queryKey: memberKeys.list(organizationId, params),
     queryFn: () => listMembers(organizationId, params),
-    enabled: organizationId !== "",
+    enabled: organizationId !== "" && (options.enabled ?? true),
     // Keeps the previous page on screen while the next one loads, so paging and typing in the
     // search box don't blank the table out on every keystroke.
     placeholderData: keepPreviousData,

@@ -15,5 +15,16 @@ services:
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
 
+  redis:
+    image: redis:7-alpine
+    container_name: gym-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - gym-redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
 volumes:
   gym-mysql-data:
+  gym-redis-data:

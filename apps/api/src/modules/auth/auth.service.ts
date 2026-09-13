@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "../../lib/password";
 import { prisma, withGeneratedId } from "../../lib/prisma";
 import { generateOpaqueToken, hashToken } from "../../lib/tokens";
 import type { AuthContext } from "../../middleware/auth.middleware";
+import { getOrganizationSaasSnapshot, toGymAuthSaas } from "../saas/saas-entitlements.service";
 import type { ForgotPasswordInput, LoginInput, ResetPasswordInput } from "./auth.schema";
 
 /**
@@ -170,6 +171,15 @@ export const authService = {
       throw new AppError(403, ErrorCode.ACCOUNT_INACTIVE, "This account is not active");
     }
 
+    // Phase 15.7 / 10.21.7: login already refuses a SUSPENDED org; refresh must too so a
+    // pre-suspend session cannot mint a new access JWT after Super Admin flips the switch.
+    // Access tokens issued before suspend remain valid until TTL (10.13) — this check is
+    // refresh-only, not authenticate().
+    if (stored.user.organization.status !== "ACTIVE") {
+      await revokeFamily(stored.familyId);
+      throw new AppError(403, ErrorCode.ACCOUNT_INACTIVE, "This organization is suspended");
+    }
+
     // Conditional update: `revokedAt: null` in the WHERE clause means two concurrent refreshes
     // with the same token can't both win — the loser sees count 0 and is treated as a replay.
     const { count } = await prisma.refreshToken.updateMany({
@@ -227,6 +237,9 @@ export const authService = {
       select: { id: true, name: true, address: true, phone: true, status: true },
     });
 
+    // JWT organizationId only (10.12). Missing subscription → null; do not invent a plan.
+    const saas = toGymAuthSaas(await getOrganizationSaasSnapshot(auth.organizationId));
+
     return {
       user: {
         id: user.id,
@@ -247,8 +260,13 @@ export const authService = {
         email: user.organization.email,
         phone: user.organization.phone,
         status: user.organization.status,
+        // Added in Phase 7. The browser's timezone is not the gym's, so an admin travelling — or
+        // simply a machine with the wrong clock zone — would otherwise read the attendance
+        // register in the wrong day's terms (1.17.4).
+        timezone: user.organization.timezone,
       },
       branches,
+      saas,
     };
   },
 

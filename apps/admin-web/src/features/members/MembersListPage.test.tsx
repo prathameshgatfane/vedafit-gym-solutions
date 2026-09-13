@@ -122,16 +122,21 @@ describe("MembersListPage rendering", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Something broke");
   });
 
-  it("hides Add member from a role without members.create", async () => {
+  it("hides Add member from a role without members.create and names the own-roster empty set", async () => {
     mock.onGet(MEMBERS_PATH).reply(() => replyWith([]));
     const trainer: SessionUser = {
       ...testUser,
-      role: { id: "role_t", name: "TRAINER", permissions: ["members.view"] },
+      role: {
+        id: "role_t",
+        name: "TRAINER",
+        permissions: ["members.view", "attendance.view"],
+      },
     };
 
     renderList(trainer);
 
-    await screen.findByText("No members yet.");
+    expect(await screen.findByTestId("own-roster-banner")).toBeInTheDocument();
+    expect(await screen.findByText("No members assigned to you yet.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add member/i })).not.toBeInTheDocument();
   });
 });
