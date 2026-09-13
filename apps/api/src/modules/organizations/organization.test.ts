@@ -94,7 +94,7 @@ describe("organizations module (HTTP)", () => {
     expect(res.body.data.id).toBe(tenant.organization.id);
   });
 
-  it("updates the organization's name and status", async () => {
+  it("updates the organization's name without touching status", async () => {
     const tenant = await createTestTenant("UpdateOrg");
     const owner = await createActor(tenant);
     const suffix = uniqueSuffix();
@@ -102,11 +102,36 @@ describe("organizations module (HTTP)", () => {
     const res = await request(app)
       .patch(`${BASE}/${tenant.organization.id}`)
       .set(...bearer(owner))
-      .send({ name: `After ${suffix}`, status: "SUSPENDED" });
+      .send({ name: `After ${suffix}` });
 
     expect(res.status).toBe(200);
     expect(res.body.data.name).toBe(`After ${suffix}`);
-    expect(res.body.data.status).toBe("SUSPENDED");
+    expect(res.body.data.status).toBe("ACTIVE");
+  });
+
+  it("rejects a gym OWNER setting status on the tenant PATCH", async () => {
+    const tenant = await createTestTenant("OwnerStatus");
+    const owner = await createActor(tenant);
+
+    const statusOnly = await request(app)
+      .patch(`${BASE}/${tenant.organization.id}`)
+      .set(...bearer(owner))
+      .send({ status: "SUSPENDED" });
+    expect(statusOnly.status).toBe(400);
+    expect(statusOnly.body.error.code).toBe("VALIDATION_ERROR");
+
+    const smuggled = await request(app)
+      .patch(`${BASE}/${tenant.organization.id}`)
+      .set(...bearer(owner))
+      .send({ name: "Still Active", status: "SUSPENDED" });
+    expect(smuggled.status).toBe(400);
+    expect(smuggled.body.error.code).toBe("VALIDATION_ERROR");
+
+    const again = await request(app)
+      .get(`${BASE}/${tenant.organization.id}`)
+      .set(...bearer(owner));
+    expect(again.body.data.status).toBe("ACTIVE");
+    expect(again.body.data.name).toBe(tenant.organization.name);
   });
 
   it("returns 403 ORG_MISMATCH rather than 404 for an unknown organization id", async () => {

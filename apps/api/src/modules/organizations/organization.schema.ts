@@ -16,12 +16,15 @@ export const createOrganizationSchema = z.object({
 });
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 
+/**
+ * Tenant PATCH may change contact fields. `status` is platform-only (15.7
+ * `PATCH /platform/organizations/:id/status`). `.strict()` so a gym OWNER cannot
+ * smuggle `status: SUSPENDED` — extra keys are 400, not silently dropped.
+ */
 export const updateOrganizationSchema = createOrganizationSchema
   .omit({ slug: true })
   .partial()
-  .extend({
-    status: organizationStatusSchema.optional(),
-  });
+  .strict();
 export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 
 export const organizationIdParamsSchema = z.object({
