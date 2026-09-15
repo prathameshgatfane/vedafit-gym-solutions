@@ -29,10 +29,10 @@ export function MemberBillingPanel({ memberId }: { memberId: string }) {
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-brand-white">Billing</h2>
+          <h2 className="text-lg font-semibold text-fg">Billing</h2>
           <p
             data-testid="member-outstanding"
-            className={`mt-1 text-sm ${outstanding > 0 ? "text-amber-300" : "text-brand-white/50"}`}
+            className={`mt-1 text-sm ${outstanding > 0 ? "text-warning" : "text-fg-muted"}`}
           >
             {outstanding > 0
               ? `${formatPrice(outstanding.toFixed(2))} outstanding`
@@ -50,14 +50,14 @@ export function MemberBillingPanel({ memberId }: { memberId: string }) {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this member's invoices.")}
         </p>
       ) : null}
 
       <DataTable>
         <table data-testid="member-invoices" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Invoice</th>
               <th scope="col" className="px-4 py-3 font-medium">For</th>
@@ -66,34 +66,34 @@ export function MemberBillingPanel({ memberId }: { memberId: string }) {
               <th scope="col" className="px-4 py-3 font-medium">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-brand-white/5">
+          <tbody className="divide-y divide-fg/5">
             {isPending ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   Loading invoices…
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   No invoices for this member yet.
                 </td>
               </tr>
             ) : (
               invoices.map((invoice) => (
-                <tr key={invoice.id} className="bg-brand-black hover:bg-brand-white/5">
+                <tr key={invoice.id} className="bg-bg hover:bg-fg/5">
                   <td className="px-4 py-3 font-medium">
-                    <Link to={`/invoices/${invoice.id}`} className="text-brand-green hover:underline">
+                    <Link to={`/invoices/${invoice.id}`} className="text-accent-text hover:underline">
                       {invoice.invoiceNumber}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-brand-white/50">{invoice.notes ?? "—"}</td>
-                  <td className="px-4 py-3 text-right text-brand-white/70">
+                  <td className="px-4 py-3 text-fg-muted">{invoice.notes ?? "—"}</td>
+                  <td className="px-4 py-3 text-right text-fg/70">
                     {formatPrice(invoice.amountTotal)}
                   </td>
                   <td
                     className={`px-4 py-3 text-right ${
-                      Number(invoice.amountPending) > 0 ? "text-amber-300" : "text-brand-white/40"
+                      Number(invoice.amountPending) > 0 ? "text-warning" : "text-fg-muted"
                     }`}
                   >
                     {formatPrice(invoice.amountPending)}

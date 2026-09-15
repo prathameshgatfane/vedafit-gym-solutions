@@ -69,8 +69,8 @@ export function MembershipsListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-white">Memberships</h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
+          <h1 className="text-2xl font-semibold text-fg">Memberships</h1>
+          <p className="mt-1 text-sm text-accent-muted">
             {pagination
               ? `${pagination.total} ${pagination.total === 1 ? "membership" : "memberships"}${
                   hasFilters ? " matching your filters" : ""
@@ -82,13 +82,13 @@ export function MembershipsListPage() {
 
       {/* Selling starts from a member, so there's no "add" button here — just a pointer to where
           the action lives, rather than a dead end. */}
-      <p className="text-sm text-brand-white/50">
+      <p className="text-sm text-fg-muted">
         To sell a membership, open a member and choose “Sell membership”.
       </p>
 
       <div
         data-testid="memberships-filter-bar"
-        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
       >
         <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -140,14 +140,14 @@ export function MembershipsListPage() {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load memberships.")}
         </p>
       ) : null}
 
       <DataTable>
         <table data-testid="memberships-table" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Member</th>
               <th scope="col" className="px-4 py-3 font-medium">Plan</th>
@@ -157,49 +157,49 @@ export function MembershipsListPage() {
             </tr>
           </thead>
           <tbody
-            className={`divide-y divide-brand-white/5 transition-opacity ${
+            className={`divide-y divide-fg/5 transition-opacity ${
               isFetching && !isPending ? "opacity-60" : ""
             }`}
           >
             {isPending ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   Loading memberships…
                 </td>
               </tr>
             ) : memberships.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   {hasFilters ? "No memberships match those filters." : "No memberships yet."}
                 </td>
               </tr>
             ) : (
               memberships.map((membership) => (
-                <tr key={membership.id} className="bg-brand-black hover:bg-brand-white/5">
+                <tr key={membership.id} className="bg-bg hover:bg-fg/5">
                   <td className="px-4 py-3">
                     <Link
                       to={`/memberships/${membership.id}`}
-                      className="font-medium text-brand-white hover:text-brand-green"
+                      className="font-medium text-fg hover:text-accent-text"
                     >
                       {membership.member.firstName} {membership.member.lastName}
                     </Link>
-                    <span className="block text-xs text-brand-white/40">
+                    <span data-testid="member-phone" className="block text-xs text-fg-muted">
                       {membership.member.phone}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">{membership.plan.name}</td>
-                  <td className="px-4 py-3 text-brand-white/70">
+                  <td className="px-4 py-3 text-fg/70">{membership.plan.name}</td>
+                  <td className="px-4 py-3 text-fg/70">
                     {formatPrice(membership.priceAtPurchase)}
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">
+                  <td className="px-4 py-3 text-fg/70">
                     {membership.startDate} → {membership.endDate}
                     {membership.status === "ACTIVE" && !membership.isUpcoming ? (
-                      <span className="block text-xs text-brand-white/40">
+                      <span data-testid="days-remaining" className="block text-xs text-fg-muted">
                         {membership.daysRemaining} days left
                       </span>
                     ) : null}
                     {membership.isUpcoming ? (
-                      <span className="block text-xs text-brand-green-muted">upcoming</span>
+                      <span className="block text-xs text-accent-muted">upcoming</span>
                     ) : null}
                   </td>
                   <td className="px-4 py-3">
@@ -214,7 +214,7 @@ export function MembershipsListPage() {
 
       {pagination && pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
+          <p data-testid="pagination-summary" className="text-sm text-fg-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">

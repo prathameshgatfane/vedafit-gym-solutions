@@ -8,7 +8,7 @@ export function AppShell() {
   const { mdUp, collapsed, mobileOpen, toggleCollapsed, openMobile, closeMobile } = useSidebarNav();
 
   return (
-    <div data-testid="app-shell" className="flex min-h-screen bg-brand-black text-brand-white">
+    <div data-testid="app-shell" className="flex min-h-screen bg-bg text-fg">
       <Sidebar
         mdUp={mdUp}
         collapsed={collapsed}

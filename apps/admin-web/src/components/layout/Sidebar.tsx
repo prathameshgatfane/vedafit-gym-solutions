@@ -66,7 +66,7 @@ export function Sidebar({
       tabIndex={-1}
       aria-hidden={!mdUp && !mobileOpen}
       className={[
-        "flex shrink-0 flex-col border-r border-brand-white/10 bg-brand-black-88 outline-none",
+        "flex shrink-0 flex-col border-r border-border bg-surface outline-none",
         "fixed inset-y-0 left-0 z-40 w-60 transition-transform duration-200",
         "md:static md:z-0 md:translate-x-0 md:pointer-events-auto",
         mdUp && collapsed ? "md:w-16" : "md:w-60",
@@ -77,13 +77,13 @@ export function Sidebar({
     >
       <div
         className={[
-          "flex h-16 items-center border-b border-brand-white/10",
+          "flex h-16 items-center border-b border-border",
           showLabels ? "gap-2 px-4" : "justify-center px-2",
         ].join(" ")}
       >
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand-green" aria-hidden="true" />
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
         {showLabels ? (
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-white">
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
             {organization?.name ?? "Gym Admin"}
           </span>
         ) : (
@@ -92,7 +92,7 @@ export function Sidebar({
         <button
           type="button"
           data-testid="sidebar-toggle"
-          className="hidden rounded-md p-1.5 text-brand-white/70 hover:bg-brand-white/5 hover:text-brand-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-green md:inline-flex"
+          className="hidden rounded-md p-1.5 text-fg/70 hover:bg-fg/5 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:inline-flex"
           aria-expanded={!collapsed}
           aria-controls="app-sidebar"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -123,7 +123,7 @@ export function Sidebar({
               aria-disabled="true"
               title="Available in a later phase"
               className={[
-                "flex cursor-not-allowed items-center rounded-md py-2 text-sm text-brand-white/35",
+                "flex cursor-not-allowed items-center rounded-md py-2 text-sm text-fg/40",
                 showLabels ? "gap-3 px-3" : "justify-center px-2",
               ].join(" ")}
             >
@@ -142,8 +142,8 @@ export function Sidebar({
                   "flex items-center rounded-md py-2 text-sm transition-colors",
                   showLabels ? "gap-3 px-3" : "justify-center px-2",
                   isActive
-                    ? "bg-brand-green font-semibold text-brand-black"
-                    : "text-brand-white/80 hover:bg-brand-white/5 hover:text-brand-white",
+                    ? "bg-accent font-semibold text-accent-fg"
+                    : "text-fg/80 hover:bg-fg/5 hover:text-fg",
                 ].join(" ")
               }
             >

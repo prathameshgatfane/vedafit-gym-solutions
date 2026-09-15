@@ -109,13 +109,13 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
   return (
     <section
       data-testid="check-in-panel"
-      className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-4"
+      className="rounded-lg border border-border bg-surface p-4"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-brand-white">Check in a member</h2>
-          <p className="mt-1 text-sm text-brand-white/50">
-            Recording arrivals at <span className="text-brand-green-muted">{branchName}</span>.
+          <h2 className="text-lg font-semibold text-fg">Check in a member</h2>
+          <p className="mt-1 text-sm text-fg-muted">
+            Recording arrivals at <span className="text-accent-muted">{branchName}</span>.
           </p>
         </div>
       </div>
@@ -137,18 +137,18 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
           data-testid="check-in-outcome"
           className={
             outcome.kind === "already"
-              ? "mt-4 rounded-md border border-brand-white/15 bg-brand-white/5 px-4 py-3 text-sm text-brand-white/70"
-              : "mt-4 rounded-md border border-brand-green/40 bg-brand-green/10 px-4 py-3 text-sm text-brand-green-muted"
+              ? "mt-4 rounded-md border border-fg/15 bg-fg/5 px-4 py-3 text-sm text-fg/70"
+              : "mt-4 rounded-md border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent-muted"
           }
         >
           {outcome.kind === "already" ? (
             <>
-              <span className="font-semibold text-brand-white">{outcome.name}</span> already checked
+              <span className="font-semibold text-fg">{outcome.name}</span> already checked
               in today at {outcome.time}. Nothing was recorded twice.
             </>
           ) : (
             <>
-              <span className="font-semibold text-brand-white">{outcome.name}</span> checked in at{" "}
+              <span className="font-semibold text-fg">{outcome.name}</span> checked in at{" "}
               {outcome.time}
               {outcome.overridden ? " — recorded as an override." : "."}
             </>
@@ -159,7 +159,7 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
       {error ? (
         <div
           role="alert"
-          className="mt-4 rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300"
+          className="mt-4 rounded-md bg-danger/10 px-4 py-3 text-sm text-danger"
         >
           {error}
         </div>
@@ -170,13 +170,13 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
           role="alertdialog"
           aria-label="Confirm override"
           data-testid="override-confirm"
-          className="mt-4 rounded-md border border-amber-400/40 bg-amber-400/10 px-4 py-3"
+          className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-3"
         >
-          <p className="text-sm font-semibold text-amber-200">
+          <p className="text-sm font-semibold text-warning">
             {pending.reason ? overrideLabel(pending.reason) : "No active membership"}
           </p>
-          <p className="mt-1 text-sm text-brand-white/70">{pending.message}</p>
-          <p className="mt-2 text-xs text-brand-white/50">
+          <p className="mt-1 text-sm text-fg/70">{pending.message}</p>
+          <p className="mt-2 text-xs text-fg-muted">
             Checking them in anyway is recorded as an override against your name, and shows up in
             reports.
           </p>
@@ -196,15 +196,15 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
       ) : null}
 
       {search === "" ? (
-        <p className="mt-4 text-sm text-brand-white/40">
+        <p className="mt-4 text-sm text-fg-muted">
           Search for a member to check them in.
         </p>
       ) : (
-        <ul data-testid="check-in-results" className="mt-4 divide-y divide-brand-white/5">
+        <ul data-testid="check-in-results" className="mt-4 divide-y divide-fg/5">
           {results.isPending ? (
-            <li className="py-3 text-sm text-brand-white/50">Searching…</li>
+            <li className="py-3 text-sm text-fg-muted">Searching…</li>
           ) : members.length === 0 ? (
-            <li className="py-3 text-sm text-brand-white/50">
+            <li className="py-3 text-sm text-fg-muted">
               Nobody matches “{search}”.
             </li>
           ) : (
@@ -215,10 +215,10 @@ export function CheckInPanel({ branchId, branchName }: CheckInPanelProps) {
                 className="flex items-center justify-between gap-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-brand-white">
+                  <p className="text-sm font-medium text-fg">
                     {member.firstName} {member.lastName}
                   </p>
-                  <p className="text-xs text-brand-white/50">{member.phone}</p>
+                  <p className="text-xs text-fg-muted">{member.phone}</p>
                 </div>
                 <Button
                   data-testid={`check-in-${member.id}`}

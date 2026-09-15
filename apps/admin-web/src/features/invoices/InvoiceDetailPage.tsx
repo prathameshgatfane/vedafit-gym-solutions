@@ -23,8 +23,8 @@ import { useCancelInvoice, useInvoice } from "./useInvoices";
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-brand-white/50">{label}</dt>
-      <dd className="mt-1 text-sm text-brand-white">{children}</dd>
+      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">{children}</dd>
     </div>
   );
 }
@@ -66,7 +66,7 @@ export function InvoiceDetailPage() {
   if (isError || !invoice) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this invoice.")}
         </p>
         <Button variant="secondary" onClick={() => navigate("/invoices")}>
@@ -148,13 +148,13 @@ export function InvoiceDetailPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 data-testid="invoice-heading" className="text-2xl font-semibold text-brand-white">
+            <h1 data-testid="invoice-heading" className="text-2xl font-semibold text-fg">
               {invoice.invoiceNumber}
             </h1>
             <StatusBadge status={invoice.status} />
           </div>
-          <p className="mt-1 text-sm text-brand-green-muted">
-            <Link to={`/members/${invoice.memberId}`} className="hover:text-brand-green">
+          <p className="mt-1 text-sm text-accent-muted">
+            <Link to={`/members/${invoice.memberId}`} className="hover:text-accent-text">
               {invoice.member.firstName} {invoice.member.lastName}
             </Link>{" "}
             · {invoice.member.phone}
@@ -168,19 +168,19 @@ export function InvoiceDetailPage() {
       {notice ? (
         <p
           data-testid="action-notice"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
           {notice}
         </p>
       ) : null}
 
       {actionError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {actionError}
         </p>
       ) : null}
 
-      <dl className="grid gap-5 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6 sm:grid-cols-4">
+      <dl className="grid gap-5 rounded-lg border border-border bg-surface p-6 sm:grid-cols-4">
         <Field label="Total billed">
           <span data-testid="amount-total">{formatPrice(invoice.amountTotal)}</span>
         </Field>
@@ -190,7 +190,7 @@ export function InvoiceDetailPage() {
         <Field label="Outstanding">
           <span
             data-testid="amount-pending"
-            className={Number(invoice.amountPending) > 0 ? "text-amber-300" : undefined}
+            className={Number(invoice.amountPending) > 0 ? "text-warning" : undefined}
           >
             {formatPrice(invoice.amountPending)}
           </span>
@@ -201,7 +201,7 @@ export function InvoiceDetailPage() {
           <Field label="Membership term">
             <Link
               to={`/memberships/${invoice.membershipId}`}
-              className="text-brand-green hover:underline"
+              className="text-accent-text hover:underline"
             >
               {invoice.membership
                 ? `${invoice.membership.startDate} → ${invoice.membership.endDate}`
@@ -227,10 +227,10 @@ export function InvoiceDetailPage() {
       {panel?.kind === "pay" ? (
         <div
           data-testid="record-payment-panel"
-          className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-5"
+          className="rounded-lg border border-border bg-surface p-5"
         >
-          <h2 className="text-sm font-semibold text-brand-white">Record a payment</h2>
-          <p className="mt-1 text-sm text-brand-white/60">
+          <h2 className="text-sm font-semibold text-fg">Record a payment</h2>
+          <p className="mt-1 text-sm text-fg-muted">
             {formatPrice(invoice.amountPending)} is outstanding. Part payments are fine; anything
             more than the balance is refused.
           </p>
@@ -265,12 +265,12 @@ export function InvoiceDetailPage() {
         <div
           role="alertdialog"
           data-testid="confirm-cancel-invoice"
-          className="rounded-lg border border-red-400/40 bg-red-500/5 p-5"
+          className="rounded-lg border border-danger/40 bg-danger/5 p-5"
         >
-          <h2 className="text-sm font-semibold text-brand-white">
+          <h2 className="text-sm font-semibold text-fg">
             Cancel {invoice.invoiceNumber}?
           </h2>
-          <p className="mt-1 text-sm text-brand-white/70">
+          <p className="mt-1 text-sm text-fg/70">
             The amount billed can't be edited, so cancelling and raising a new invoice is how a
             wrong bill gets corrected. This one has nothing collected against it.
           </p>
@@ -288,15 +288,15 @@ export function InvoiceDetailPage() {
       {canViewPayments ? (
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold text-brand-white">Payment history</h2>
-            <p className="text-xs text-brand-white/40">
+            <h2 className="text-lg font-semibold text-fg">Payment history</h2>
+            <p className="text-xs text-fg-muted">
               Receipts and refunds, oldest first. Nothing here is ever edited or deleted.
             </p>
           </div>
 
           <DataTable>
             <table data-testid="payment-history" className="w-full text-left text-sm">
-              <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+              <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">Date</th>
                   <th scope="col" className="px-4 py-3 font-medium">Entry</th>
@@ -305,16 +305,16 @@ export function InvoiceDetailPage() {
                   <th scope="col" className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-white/5">
+              <tbody className="divide-y divide-fg/5">
                 {ledger.isPending ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                    <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                       Loading payments…
                     </td>
                   </tr>
                 ) : payments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                    <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                       Nothing collected yet.
                     </td>
                   </tr>
@@ -323,18 +323,18 @@ export function InvoiceDetailPage() {
                     <tr
                       key={payment.id}
                       data-testid={payment.isRefund ? "refund-row" : "payment-row"}
-                      className="bg-brand-black"
+                      className="bg-bg"
                     >
-                      <td className="px-4 py-3 text-brand-white/70">
+                      <td className="px-4 py-3 text-fg/70">
                         {new Date(payment.paidAt).toLocaleDateString("en-IN")}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={payment.status} />
                       </td>
-                      <td className="px-4 py-3 text-brand-white/50">{payment.method}</td>
+                      <td className="px-4 py-3 text-fg-muted">{payment.method}</td>
                       <td
                         className={`px-4 py-3 text-right ${
-                          payment.isRefund ? "text-brand-white/50" : "text-brand-white"
+                          payment.isRefund ? "text-fg-muted" : "text-fg"
                         }`}
                       >
                         {formatSignedPrice(payment.amount)}
@@ -353,7 +353,7 @@ export function InvoiceDetailPage() {
                             Refund
                           </Button>
                         ) : (
-                          <span className="text-brand-white/30">—</span>
+                          <span className="text-fg-muted">—</span>
                         )}
                       </td>
                     </tr>
@@ -369,12 +369,12 @@ export function InvoiceDetailPage() {
         <div
           role="alertdialog"
           data-testid="confirm-refund"
-          className="rounded-lg border border-red-400/40 bg-red-500/5 p-5"
+          className="rounded-lg border border-danger/40 bg-danger/5 p-5"
         >
-          <h2 className="text-sm font-semibold text-brand-white">
+          <h2 className="text-sm font-semibold text-fg">
             Refund {formatPrice(panel.payment.amount)} taken by {panel.payment.method}?
           </h2>
-          <p className="mt-1 text-sm text-brand-white/70">
+          <p className="mt-1 text-sm text-fg/70">
             This adds a separate refund entry — the original payment stays on the record exactly as
             it is, and the action is written to the audit log against your name. Refund less than
             the full amount if you're only returning part of it.

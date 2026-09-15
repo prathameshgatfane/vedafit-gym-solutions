@@ -78,7 +78,7 @@ export function PlanFormPage({ mode }: PlanFormPageProps) {
 
   if (isEdit && existing.isError) {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
         {apiErrorMessage(existing.error, "Could not load this plan.")}
       </p>
     );
@@ -86,10 +86,10 @@ export function PlanFormPage({ mode }: PlanFormPageProps) {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-brand-white">
+      <h1 className="text-2xl font-semibold text-fg">
         {isEdit ? "Edit plan" : "Add plan"}
       </h1>
-      <p className="mt-1 text-sm text-brand-green-muted">
+      <p className="mt-1 text-sm text-accent-muted">
         {isEdit
           ? "Changes apply to memberships sold from now on — existing terms keep their price."
           : "Define what a membership costs and how long it lasts."}
@@ -98,7 +98,7 @@ export function PlanFormPage({ mode }: PlanFormPageProps) {
       <form
         noValidate
         onSubmit={handleSubmit(onSubmit)}
-        className="mt-6 flex flex-col gap-4 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+        className="mt-6 flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
       >
         <TextField
           label="Plan name"
@@ -135,7 +135,7 @@ export function PlanFormPage({ mode }: PlanFormPageProps) {
         />
 
         {formError ? (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         ) : null}

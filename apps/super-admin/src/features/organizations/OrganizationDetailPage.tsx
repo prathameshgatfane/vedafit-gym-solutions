@@ -45,12 +45,12 @@ export function OrganizationDetailPage() {
   });
 
   if (isPending) {
-    return <p className="text-sm text-brand-white/60">Loading organization…</p>;
+    return <p className="text-sm text-fg-muted">Loading organization…</p>;
   }
 
   if (isError || !data) {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
         {apiErrorMessage(error, "Could not load this organization.")}
       </p>
     );
@@ -62,31 +62,31 @@ export function OrganizationDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <Link to="/organizations" className="text-sm text-brand-green hover:underline">
+        <Link to="/organizations" className="text-sm text-accent-text hover:underline">
           ← Organizations
         </Link>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h1 data-testid="org-name" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="org-name" className="text-2xl font-semibold text-fg">
             {org.name}
           </h1>
           <span data-testid="org-status">
             <StatusBadge status={org.status} />
           </span>
         </div>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <p className="mt-1 text-sm text-accent-muted">
           {org.slug} · organization status is independent of subscription status
         </p>
       </div>
 
       {actionError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {actionError}
         </p>
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-5">
-          <h2 className="text-lg font-semibold text-brand-white">Organization</h2>
+        <article className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="text-lg font-semibold text-fg">Organization</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <Row label="Email" value={org.email} />
             <Row label="Phone" value={org.phone ?? "—"} />
@@ -109,12 +109,12 @@ export function OrganizationDetailPage() {
           </div>
         </article>
 
-        <article className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-5">
-          <h2 className="text-lg font-semibold text-brand-white">Subscription</h2>
+        <article className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="text-lg font-semibold text-fg">Subscription</h2>
           {data.subscription ? (
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-4">
-                <dt className="text-brand-white/50">Status</dt>
+                <dt className="text-fg-muted">Status</dt>
                 <dd>
                   <StatusBadge status={data.subscription.status} />
                 </dd>
@@ -129,14 +129,14 @@ export function OrganizationDetailPage() {
               <Row label="Period end" value={formatWhen(data.subscription.currentPeriodEnd)} />
             </dl>
           ) : (
-            <p className="mt-4 text-sm text-brand-white/60">No SaaS subscription on this organization.</p>
+            <p className="mt-4 text-sm text-fg-muted">No SaaS subscription on this organization.</p>
           )}
         </article>
       </section>
 
-      <section className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-5">
-        <h2 className="text-lg font-semibold text-brand-white">Assign plan</h2>
-        <p className="mt-1 text-sm text-brand-white/50">
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <h2 className="text-lg font-semibold text-fg">Assign plan</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           Plan choices come from GET /platform/plans. Entitlement values cannot be edited.
         </p>
         <form
@@ -174,7 +174,7 @@ export function OrganizationDetailPage() {
             {...register("currentPeriodEnd")}
           />
           {errors.root?.message ? (
-            <p role="alert" className="md:col-span-3 text-sm text-red-300">
+            <p role="alert" className="md:col-span-3 text-sm text-danger">
               {errors.root.message}
             </p>
           ) : null}
@@ -186,19 +186,19 @@ export function OrganizationDetailPage() {
         </form>
       </section>
 
-      <section className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-5">
-        <h2 className="text-lg font-semibold text-brand-white">Entitlements</h2>
-        <p className="mt-1 text-sm text-brand-white/50">
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <h2 className="text-lg font-semibold text-fg">Entitlements</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           Server snapshot. Display only — values are not sent back to the API.
         </p>
         {data.entitlements.length === 0 ? (
-          <p className="mt-4 text-sm text-brand-white/60">No entitlement snapshot.</p>
+          <p className="mt-4 text-sm text-fg-muted">No entitlement snapshot.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-brand-white/10">
+          <ul className="mt-4 divide-y divide-fg/10">
             {data.entitlements.map((row) => (
               <li key={row.key} className="flex justify-between gap-4 py-2 text-sm">
                 <span>{row.key}</span>
-                <span className="text-brand-white/60">{formatEntitlement(row)}</span>
+                <span className="text-fg-muted">{formatEntitlement(row)}</span>
               </li>
             ))}
           </ul>
@@ -269,8 +269,8 @@ export function OrganizationDetailPage() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-brand-white/50">{label}</dt>
-      <dd className="text-right text-brand-white">{value}</dd>
+      <dt className="text-fg-muted">{label}</dt>
+      <dd className="text-right text-fg">{value}</dd>
     </div>
   );
 }

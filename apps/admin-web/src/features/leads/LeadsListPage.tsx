@@ -82,10 +82,10 @@ export function LeadsListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 data-testid="leads-heading" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="leads-heading" className="text-2xl font-semibold text-fg">
             Leads
           </h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
+          <p className="mt-1 text-sm text-accent-muted">
             {pagination
               ? `${pagination.total} ${pagination.total === 1 ? "lead" : "leads"}${
                   hasFilters ? " matching your filters" : ""
@@ -100,7 +100,7 @@ export function LeadsListPage() {
 
       <div
         data-testid="leads-filter-bar"
-        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
       >
         <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -158,14 +158,14 @@ export function LeadsListPage() {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load leads.")}
         </p>
       ) : null}
 
       <DataTable>
         <table data-testid="leads-table" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Name</th>
               <th scope="col" className="px-4 py-3 font-medium">Phone</th>
@@ -176,19 +176,19 @@ export function LeadsListPage() {
             </tr>
           </thead>
           <tbody
-            className={`divide-y divide-brand-white/5 transition-opacity ${
+            className={`divide-y divide-fg/5 transition-opacity ${
               isFetching && !isPending ? "opacity-60" : ""
             }`}
           >
             {isPending ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   Loading leads…
                 </td>
               </tr>
             ) : leads.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   {hasFilters ? "No leads match those filters." : "No leads yet."}
                 </td>
               </tr>
@@ -199,17 +199,17 @@ export function LeadsListPage() {
                   data-testid="lead-row"
                   data-lead-id={lead.id}
                   data-lead-status={lead.status}
-                  className="bg-brand-black hover:bg-brand-white/5"
+                  className="bg-bg hover:bg-fg/5"
                 >
-                  <td className="px-4 py-3 font-medium text-brand-white">{lead.name}</td>
-                  <td className="px-4 py-3 text-brand-white/70">{lead.phone}</td>
+                  <td className="px-4 py-3 font-medium text-fg">{lead.name}</td>
+                  <td className="px-4 py-3 text-fg/70">{lead.phone}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={lead.status} />
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">
+                  <td className="px-4 py-3 text-fg/70">
                     {lead.assignedTo?.name ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-brand-white/50">
+                  <td className="px-4 py-3 text-fg-muted">
                     {formatFollowUp(lead.followUpAt)}
                   </td>
                   <td className="px-4 py-3">
@@ -231,7 +231,7 @@ export function LeadsListPage() {
 
       {pagination && pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
+          <p data-testid="pagination-summary" className="text-sm text-fg-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">

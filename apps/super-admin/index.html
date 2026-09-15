@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vedafit — Super Admin</title>
+    <script>
+      (function () {
+        var theme = "dark";
+        try {
+          if (window.localStorage.getItem("vedafit.platform.theme") === "light") theme = "light";
+        } catch (e) {
+          /* private mode / blocked storage: stay dark */
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

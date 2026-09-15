@@ -2,11 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Brand palette: docs/architecture/DEVELOPMENT_PLAN.md Section 1.14, defined as theme colors in
-   tailwind.config.ts. Applied to real UI as of Phase 3. Components use `brand-*` utility classes;
-   the only place raw values appear is the Tailwind theme, so a palette correction is a one-file
-   change. The two rules below exist so the dark background covers the viewport even before React
-   mounts — otherwise a cold load flashes white. */
+/**
+ * Semantic tokens — DEVELOPMENT_PLAN.md Section 11.3 / Slice A.
+ *
+ * `:root` is the dark theme (Locked Decision 1.14). `[data-theme="light"]` is additive.
+ * Channels are space-separated sRGB so Tailwind opacity modifiers (`bg-fg/5`, `border-accent/40`)
+ * work. `brand.*` in tailwind.config.ts remains the named 1.14 palette; these variables must
+ * stay in lockstep with it for dark.
+ *
+ * Lime `#C9FF1F` is a fill in both themes (`--color-accent` + `--color-accent-fg`). It is never
+ * light-mode body/link/heading text (`--color-accent-text`).
+ */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: 0 0 0;
+  --color-surface: 31 31 31;
+  --color-fg: 254 249 245;
+  --color-fg-muted: 201 196 191;
+  --color-border: rgb(var(--color-fg) / 0.12);
+  --color-accent: 201 255 31;
+  --color-accent-fg: 0 0 0;
+  --color-accent-text: 201 255 31;
+  --color-accent-muted: 233 255 165;
+  --color-danger: 252 165 165;
+  --color-warning: 252 211 77;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: 254 249 245;
+  --color-surface: 255 255 255;
+  --color-fg: 20 20 20;
+  --color-fg-muted: 92 88 84;
+  --color-border: rgb(var(--color-fg) / 0.12);
+  --color-accent: 201 255 31;
+  --color-accent-fg: 0 0 0;
+  /* #3D4D00 — locked 2026-09-15 headed Chrome: rgb(61, 77, 0) on cream = 8.89:1. Not lime. */
+  --color-accent-text: 61 77 0;
+  --color-accent-muted: 61 77 0;
+  --color-danger: 155 28 28; /* #9B1C1C — 7.79:1 on cream, locked headed Chrome */
+  --color-warning: 146 64 14; /* #92400E — 6.78:1 on cream, locked headed Chrome */
+}
+
 html,
 body,
 #root {
@@ -16,5 +54,5 @@ body,
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
-  @apply bg-brand-black text-brand-white;
+  @apply bg-bg text-fg;
 }

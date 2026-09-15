@@ -21,7 +21,10 @@
     "e2e:expenses": "tsx e2e/phase11-verify.ts",
     "e2e:notifications": "tsx e2e/phase12-verify.ts",
     "e2e:member": "tsx e2e/phase13-verify.ts",
-    "e2e:responsive": "tsx e2e/responsive-verify.ts"
+    "e2e:responsive": "tsx e2e/responsive-verify.ts",
+    "e2e:contrast": "tsx e2e/contrast-verify.ts",
+    "e2e:slice-a": "tsx e2e/slice-a-verify.ts",
+    "e2e:theme": "tsx e2e/theme-verify.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

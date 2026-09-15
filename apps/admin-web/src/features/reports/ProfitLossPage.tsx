@@ -42,10 +42,10 @@ export function ProfitLossPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 data-testid="pnl-heading" className="text-2xl font-semibold text-brand-white">
+        <h1 data-testid="pnl-heading" className="text-2xl font-semibold text-fg">
           Revenue vs expenses
         </h1>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <p className="mt-1 text-sm text-accent-muted">
           Gym-local months, same window as the dashboard&apos;s revenue widget. Org-level costs
           appear only when you are looking at the whole gym.
         </p>
@@ -53,7 +53,7 @@ export function ProfitLossPage() {
 
       <div
         data-testid="pnl-filters"
-        className="flex flex-wrap items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
       >
         <TextField
           label="From (YYYY-MM)"
@@ -87,14 +87,14 @@ export function ProfitLossPage() {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this report.")}
         </p>
       ) : null}
 
       {data ? (
         <>
-          <p className="text-sm text-brand-white/50">
+          <p className="text-sm text-fg-muted">
             {data.from === data.to ? data.from : `${data.from} → ${data.to}`}
             {data.scope.branchName ? ` · ${data.scope.branchName}` : " · All branches"}
             {` · ${data.timezone}`}
@@ -102,53 +102,53 @@ export function ProfitLossPage() {
 
           <dl
             data-testid="pnl-totals"
-            className="grid gap-4 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6 sm:grid-cols-3"
+            className="grid gap-4 rounded-lg border border-border bg-surface p-6 sm:grid-cols-3"
           >
             <div>
-              <dt className="text-xs uppercase tracking-wide text-brand-white/50">Revenue</dt>
-              <dd data-testid="pnl-revenue" className="mt-1 text-2xl font-semibold text-brand-white">
+              <dt className="text-xs uppercase tracking-wide text-fg-muted">Revenue</dt>
+              <dd data-testid="pnl-revenue" className="mt-1 text-2xl font-semibold text-fg">
                 {formatPrice(data.revenue)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-brand-white/50">Expenses</dt>
-              <dd data-testid="pnl-expenses" className="mt-1 text-2xl font-semibold text-brand-white">
+              <dt className="text-xs uppercase tracking-wide text-fg-muted">Expenses</dt>
+              <dd data-testid="pnl-expenses" className="mt-1 text-2xl font-semibold text-fg">
                 {formatPrice(data.expenses)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-brand-white/50">Net</dt>
-              <dd data-testid="pnl-net" className="mt-1 text-2xl font-semibold text-brand-green">
+              <dt className="text-xs uppercase tracking-wide text-fg-muted">Net</dt>
+              <dd data-testid="pnl-net" className="mt-1 text-2xl font-semibold text-accent-text">
                 {formatSignedPrice(data.net)}
               </dd>
             </div>
           </dl>
 
-          <section className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6">
-            <h2 className="text-lg font-semibold text-brand-white">By category</h2>
+          <section className="rounded-lg border border-border bg-surface p-6">
+            <h2 className="text-lg font-semibold text-fg">By category</h2>
             <div className="mt-4">
             <DataTable fit>
             <table data-testid="pnl-categories" className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-brand-white/50">
+              <thead className="text-xs uppercase tracking-wide text-fg-muted">
                 <tr>
                   <th className="py-2 font-medium">Category</th>
                   <th className="py-2 text-right font-medium">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-white/5">
+              <tbody className="divide-y divide-fg/5">
                 {data.byCategory.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="py-6 text-center text-brand-white/50">
+                    <td colSpan={2} className="py-6 text-center text-fg-muted">
                       No expenses in this window.
                     </td>
                   </tr>
                 ) : (
                   data.byCategory.map((row) => (
                     <tr key={row.category} data-testid="pnl-category-row">
-                      <td className="py-2 text-brand-white">
+                      <td className="py-2 text-fg">
                         {EXPENSE_CATEGORY_LABELS[row.category as ExpenseCategory] ?? row.category}
                       </td>
-                      <td className="py-2 text-right text-brand-white">
+                      <td className="py-2 text-right text-fg">
                         {formatPrice(row.total)}
                       </td>
                     </tr>

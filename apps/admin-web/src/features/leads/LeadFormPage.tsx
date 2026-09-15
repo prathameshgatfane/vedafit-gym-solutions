@@ -99,7 +99,7 @@ export function LeadFormPage({ mode }: LeadFormPageProps) {
 
   if (isEdit && existing.isError) {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
         {apiErrorMessage(existing.error, "Could not load this lead.")}
       </p>
     );
@@ -107,7 +107,7 @@ export function LeadFormPage({ mode }: LeadFormPageProps) {
 
   if (isEdit && existing.data?.status === "CONVERTED") {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
         A converted lead is history — edit the member instead.
       </p>
     );
@@ -121,10 +121,10 @@ export function LeadFormPage({ mode }: LeadFormPageProps) {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-brand-white">
+      <h1 className="text-2xl font-semibold text-fg">
         {isEdit ? "Edit lead" : "Add lead"}
       </h1>
-      <p className="mt-1 text-sm text-brand-green-muted">
+      <p className="mt-1 text-sm text-accent-muted">
         {isEdit
           ? "Update this enquiry. Status moves live on the lead page, not here."
           : "A walk-in, a DM, a referral — anything that is not a member yet."}
@@ -134,7 +134,7 @@ export function LeadFormPage({ mode }: LeadFormPageProps) {
         noValidate
         data-testid="lead-form"
         onSubmit={handleSubmit(onSubmit)}
-        className="mt-6 flex flex-col gap-4 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+        className="mt-6 flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
       >
         <TextField
           label="Name"
@@ -189,7 +189,7 @@ export function LeadFormPage({ mode }: LeadFormPageProps) {
         />
 
         {formError ? (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         ) : null}

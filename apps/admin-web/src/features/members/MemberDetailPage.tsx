@@ -12,8 +12,8 @@ import { useArchiveMember, useMember } from "./useMembers";
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-brand-white/50">{label}</dt>
-      <dd className="mt-1 text-sm text-brand-white">{children}</dd>
+      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">{children}</dd>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function MemberDetailPage() {
   if (isError || !member) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this member.")}
         </p>
         <Button variant="secondary" onClick={() => navigate("/members")}>
@@ -64,14 +64,14 @@ export function MemberDetailPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link to="/members" className="text-sm text-brand-green-muted hover:text-brand-green">
+        <Link to="/members" className="text-sm text-accent-muted hover:text-accent-text">
           ← Back to members
         </Link>
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 data-testid="member-name" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="member-name" className="text-2xl font-semibold text-fg">
             {member.firstName} {member.lastName}
           </h1>
           <div className="mt-2">
@@ -102,9 +102,9 @@ export function MemberDetailPage() {
         <div
           role="alertdialog"
           aria-label="Confirm archive"
-          className="rounded-lg border border-red-400/40 bg-brand-black-88 p-4"
+          className="rounded-lg border border-danger/40 bg-surface p-4"
         >
-          <p className="text-sm text-brand-white">
+          <p className="text-sm text-fg">
             Archive {member.firstName} {member.lastName}? Their record stays readable and their
             phone number becomes available for a new member.
           </p>
@@ -125,12 +125,12 @@ export function MemberDetailPage() {
       ) : null}
 
       {archiveError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {archiveError}
         </p>
       ) : null}
 
-      <dl className="grid gap-5 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6 sm:grid-cols-2">
+      <dl className="grid gap-5 rounded-lg border border-border bg-surface p-6 sm:grid-cols-2">
         <Field label="Phone">{member.phone}</Field>
         <Field label="Email">{member.email ?? "—"}</Field>
         <Field label="Date of birth">{member.dateOfBirth ?? "—"}</Field>
@@ -143,7 +143,7 @@ export function MemberDetailPage() {
 
       {canViewInvoices ? <MemberBillingPanel memberId={member.id} /> : null}
 
-      <p className="text-sm text-brand-white/40">Attendance appears here in a later phase.</p>
+      <p className="text-sm text-fg-muted">Attendance appears here in a later phase.</p>
     </div>
   );
 }

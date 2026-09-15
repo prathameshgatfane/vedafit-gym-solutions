@@ -98,6 +98,27 @@ export function formatCalls(calls: ApiCall[]): string {
   return calls.map((c) => `    ${c.method} ${c.path} -> ${c.status}`).join("\n");
 }
 
+export const BRAND_RGB = {
+  black: "rgb(0, 0, 0)",
+  black88: "rgb(31, 31, 31)",
+  green: "rgb(201, 255, 31)",
+  greenMuted: "rgb(233, 255, 165)",
+  white: "rgb(254, 249, 245)",
+  whiteMuted: "rgb(201, 196, 191)",
+} as const;
+
+export async function computed(
+  page: Page,
+  selector: string,
+  property: string,
+): Promise<string> {
+  return page.$eval(
+    selector,
+    (el, prop) => window.getComputedStyle(el).getPropertyValue(prop as string),
+    property,
+  );
+}
+
 let passed = 0;
 let failed = 0;
 

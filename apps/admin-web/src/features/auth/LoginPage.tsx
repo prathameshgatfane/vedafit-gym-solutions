@@ -49,14 +49,14 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-black px-4">
-      <div className="w-full max-w-sm rounded-xl border border-brand-white/10 bg-brand-black-88 p-8">
+    <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-8">
         <div className="mb-6 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-brand-green" aria-hidden="true" />
-          <h1 className="text-lg font-semibold text-brand-white">Gym Admin</h1>
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
+          <h1 className="text-lg font-semibold text-fg">Gym Admin</h1>
         </div>
 
-        <p className="mb-6 text-sm text-brand-green-muted">Sign in to continue.</p>
+        <p className="mb-6 text-sm text-accent-muted">Sign in to continue.</p>
 
         <form
           noValidate
@@ -84,7 +84,7 @@ export function LoginPage() {
           />
 
           {formError ? (
-            <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
               {formError}
             </p>
           ) : null}

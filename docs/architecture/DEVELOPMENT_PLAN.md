@@ -204,12 +204,30 @@ values.
 - **Primary accent (brand green):** `#C9FF1F` — Fit Green
 - **Muted/tinted accent:** `#E9FFA5` — Fit Green 40%
 - **Light surface/text-on-dark:** `#FEF9F5` — White
+- **Muted text-on-dark:** `#C9C4BF` — White muted (Slice 0, 2026-09-15). Solid color, **not**
+  `brand.white` at 40% alpha. Headed Chrome: `rgb(201, 196, 191)` on `#000` = **12.13:1**.
 
-Wired into `apps/admin-web`'s Tailwind config as named theme colors (`brand.black`,
-`brand.black-88`, `brand.green`, `brand.green-muted`, `brand.white`) — never hardcoded as raw hex
+Wired into `apps/admin-web` and `apps/super-admin` Tailwind configs as named theme colors
+(`brand.black`, `brand.black-88`, `brand.green`, `brand.green-muted`, `brand.white`,
+`brand.white-muted`) — never hardcoded as raw hex
 in components — so the palette can be corrected in one place later without touching any component.
 Registered in Phase 1 and **applied to real UI as of Phase 3** (login screen and app shell),
 verified in a browser as computed CSS values rather than as class names in JSX.
+
+**Amendment 2026-09-15 — additive light theme, not a rewrite of this list.** 1.14 stays the
+**dark default**. Components map through semantic CSS variables (`--color-bg`, `--color-fg`,
+`--color-fg-muted`, `--color-accent`, `--color-accent-text`, `--color-warning`,
+`--color-danger`, …) with `data-theme` on `<html>`. Dark computed values remain the RGB
+readings above. Light is the same brand inverted onto cream `#FEF9F5`:
+
+- Lime `#C9FF1F` is **fill only** (buttons, active-nav fill, chart stroke). It is never
+  light-mode body, link, heading, or metric text.
+- Light links / metrics / ACTIVE use `--color-accent-text` `#3D4D00` (**8.89:1** on cream).
+- Light muted copy uses `--color-fg-muted` `#5C5854` (**6.74:1** on cream) — the Slice 0
+  lesson applied to the light side, not a third grey.
+- Light warning / danger: `#92400E` / `#9B1C1C`. Persistence: `vedafit.admin.theme` and
+  `vedafit.platform.theme` (separate origins). No `prefers-color-scheme`. Full record:
+  Section 11 and the dated Section 9 entries.
 
 ### 1.15 Membership lifecycle semantics
 
@@ -3628,6 +3646,57 @@ an open question (10.22).
 
 ## 9. Decision Changes Log
 
+- **2026-09-15:** Locked Decision **1.14 amended, not rewritten.** Dark palette hex values
+  are unchanged. Light mode is an **additive** `data-theme` mapping of the same brand
+  through semantic CSS variables (duplicated in both apps; no `packages/ui`). Dark remains
+  the default; first visit without `localStorage` is dark; **no** `prefers-color-scheme`.
+  Keys: `vedafit.admin.theme` (admin-web) and `vedafit.platform.theme` (Super Admin) —
+  separate origins, separate preferences. **Accent rule:** lime `#C9FF1F` is fill-only
+  (buttons, active-nav fill, Recharts stroke) with black label; it is never light-mode
+  body / link / heading / metric text (`--color-accent-text` `#3D4D00`, **8.89:1** on
+  cream). **Slice 0 muted fix** is part of the same record: stop faking muted with
+  `brand-white/40` (~3.6:1); dark muted is solid `#C9C4BF` (**12.13:1** on black); light
+  muted is solid `#5C5854` (**6.74:1** on cream). Chart ticks follow that muted token
+  (**7.05:1** on white) after `rgba(20,20,20,0.55)` failed AA at **4.03:1**. Warning /
+  danger light variants `#92400E` / `#9B1C1C`. Super Admin reuses the locked Slice A
+  tokens, not a second palette. **Slice C Done:** `pnpm e2e:theme` is a dual-origin
+  smoke (not a third copy of A/B). It proves, in one Chrome session, that the two keys
+  do not leak across `:5173` / `:5174`, that both CSS copies still resolve to the locked
+  light RGBs, and that a sampled dark+light AA pass holds on both apps. **47/0**.
+  Per-app matrices stay on `e2e:slice-a` (**45/0**) and `e2e:slice-b` (**33/0**). Super
+  Admin 375 layout remains the queued 10.22 retrofit — not this work.
+- **2026-09-15:** Slice **B** light/dark **Done** on **super-admin**. Same locked tokens
+  as Slice A — not a second palette. `data-theme` inline script, dark default, no
+  `prefers-color-scheme`. Topbar `theme-toggle` persists `vedafit.platform.theme`
+  (not `vedafit.admin.theme`). Lime `#C9FF1F` fill-only; light org links / ACTIVE
+  `#3D4D00` **8.89:1** on cream; muted `#5C5854` **6.74:1**; TRIAL `#92400E`
+  **6.78:1**; plan codes **7.05:1** on white cards. `pnpm e2e:slice-b` **33/0**;
+  Phase 15 dark **40/0**. Screenshots: orgs / org detail / SaaS plans at
+  375 / 768 / 1440, both modes (375 is cramped; 10.22 SA-1 still gated). Slice
+  **C** shipped the same day (see the 1.14 amendment entry).
+- **2026-09-15:** Slice **A** chart-tick follow-up. Planned `rgba(20, 20, 20, 0.55)`
+  on cream composites to **~4.03:1** — under AA for 12px ticks (not large text).
+  Ticks now paint solid `--color-fg-muted` (`#5C5854` / `rgb(92, 88, 84)`):
+  **7.05:1** on the white widget (`rgb(255, 255, 255)`). Line stroke stays lime
+  fill. `pnpm e2e:slice-a` **45/0**.
+- **2026-09-15:** Slice **A** light/dark **Done** on **admin-web only**. Semantic CSS
+  variables + `data-theme` (inline script, dark default, no `prefers-color-scheme`).
+  Topbar `theme-toggle` persists `vedafit.admin.theme`. Lime `#C9FF1F` stays fill-only;
+  light headings/links/metrics use `#3D4D00` (`rgb(61, 77, 0)`, **8.89:1** on cream).
+  Muted `#5C5854` **6.74:1**; warning `#92400E` **6.78:1**; danger `#9B1C1C` **7.79:1**.
+  Recharts reads CSS vars (lime stroke, fg ticks). `pnpm e2e:slice-a` **44/0**; Phase 3
+  **51/0**; Phase 8 **56/0**. Slices **B/C** not started.
+- **2026-09-15:** Slice **0** contrast fix **Done** (dark only, both apps). `brand.white-muted`
+  `#C9C4BF` locked in headed Chrome as `rgb(201, 196, 191)` — **12.13:1** on `rgb(0, 0, 0)`
+  for Memberships phone, “days left”, and search placeholders (admin-web + Super Admin
+  Organizations). Replaced `text-brand-white/40`, `/30`, and `placeholder:…/40` (including
+  receding StatusBadge `ARCHIVED` / `CANCELLED` / `LOST`). Light-mode Slices **A/B/C** not
+  started. Super Admin 10.22 and admin-web Slices 3/5 still queued.
+- **2026-09-15:** Contrast + light/dark **plan** written as **Section 11**. Not implemented.
+  1.14 stays the dark default. Failing copy is `brand-white/40` and `/30` (~3.6:1 and
+  ~2.4:1 on `#000`). Lime `#C9FF1F` as text on cream is ~1.1:1 — light mode keeps lime as
+  **button fill** with black label, not as body text. Super Admin 10.22 and admin-web
+  Slices 3/5 are unchanged (not this work).
 - **2026-09-14:** Phase 15 **Done.** Section **10.20** checked. Super Admin headed Chrome
   (`pnpm --filter super-admin e2e`, **40/0**, 2026-09-13) plus a full admin-web **3–13**
   re-verification (2026-09-14) meet the same bar as prior phases. The five 2026-09-13
@@ -4817,3 +4886,195 @@ gate is answered. Do not treat this subsection as approval to code.
 
 End of Section 10. Phase 15 is **Done**. Do not start “later” items or Phase 16
 without explicit approval.
+
+---
+
+## 11. Contrast + light/dark theme
+
+Written **2026-09-15** from the Gym Admin Memberships + Super Admin Organizations screenshots
+and a repo-wide audit of `brand-white/*` opacity. **Slices 0, A, B, and C Done** (same day).
+Amends Locked Decision **1.14**; do not silently rewrite the original palette list.
+
+Two pieces, different sizes. **Slice 0 ships even if light mode is later declined.**
+
+### 11.1 What is actually failing (measured, not eyeballed)
+
+1.14 tokens in use: `brand.black` `#000000`, `brand.black-88` `#1F1F1F`, `brand.white`
+`#FEF9F5`. Muted copy is **alpha on those**, not a named muted token. Compositing
+`brand.white` onto `brand.black` (sRGB, WCAG 2 relative luminance):
+
+| Utility | ≈ result on `#000` | Contrast vs `#000` | vs `#1F1F1F` | AA normal (4.5:1) |
+|---|---|---|---|---|
+| `text-brand-white` | `#FEF9F5` | ~19.5:1 | ~16:1 | pass |
+| `text-brand-white/70` | ~`#B2AFAE` | ~9.5:1 | ~8:1 | pass |
+| `text-brand-white/50` | ~`#7F7C7A` | ~5.1:1 | ~5.0:1 | pass (tight) |
+| `text-brand-white/40` | ~`#656362` | **~3.6:1** | **~3.1:1** | **fail** |
+| `placeholder:text-brand-white/40` | same | **~3.6:1** | **~3.1:1** | **fail** |
+| `text-brand-white/30` | ~`#4C4A49` | **~2.4:1** | **~2.1:1** | **fail** |
+
+Screenshot hits that are `/40` (or equivalent):
+
+- Member **phone under the name** (`MembershipsListPage` `text-xs text-brand-white/40`)
+- **“N days left”** on the term cell (same file)
+- Search **placeholder** — `TextField` `placeholder:text-brand-white/40` in **both** apps
+  (“Member name or phone”, “Name, slug, or email”)
+
+Same `/40` (and `/30` decorative em-dashes) also appear on StatusBadge `ARCHIVED` /
+`CANCELLED` / `LOST`, AssignMember empty hint, Super Admin plan codes, dashboard widget
+hints, invoice “no pending” amounts. Table chrome `text-brand-white/50` on `text-xs`
+headers is ~5:1 — keep, do not treat as the bug.
+
+`brand.green` `#C9FF1F` on `#000` is fine as a **fill** (primary Button already uses
+`text-brand-black` on the lime). `#C9FF1F` as **text on `#FEF9F5`** is ~**1.1:1** — unusable.
+Light mode **must not** paint lime copy on cream.
+
+### 11.2 Slice 0 — contrast fix (both apps, dark only)
+
+**Goal:** every muted/secondary string meets AA against its real background. No theme
+toggle yet. 1.14 hex values stay; we stop faking muted with low alpha.
+
+**Mechanism:** add one **solid** muted color to the Tailwind theme (not an opacity):
+
+- `brand.white-muted`: `#C9C4BF` — **locked 2026-09-15** headed Chrome: computed
+  `rgb(201, 196, 191)` on `rgb(0, 0, 0)` = **12.13:1** (AA 4.5:1). Phone, days-left,
+  and both search placeholders. Not an opacity of `brand.white`.
+
+Replace:
+
+- `text-brand-white/40`, `/30`, and placeholder `/40` → `text-brand-white-muted` /
+  `placeholder:text-brand-white-muted`
+- StatusBadge receding states (`ARCHIVED`, `CANCELLED`, `LOST`) that use `/40` → the
+  same muted solid
+- Leave `/50` headers and `/70` secondary cells unless a computed check shows a
+  `black-88` stack that drops under 4.5
+
+**Touch count (today):** `text-brand-white/30|/40` in **~18 files** (admin-web ~12,
+super-admin ~6) plus **both** `TextField.tsx` copies. `brand-white/` overall is ~50 files
+because `/10` borders and `/5` hover are **not** text contrast — do not mass-replace those
+in Slice 0.
+
+**Shared `TextField` / `StatusBadge`:** two copies (no shared UI package). Change both.
+
+**Do not in Slice 0:** light mode, `data-theme`, Recharts rewrite, member-app, Super Admin
+responsive (10.22 still gated).
+
+**Verify Slice 0:** headed Chrome on Memberships + Super Admin Organizations. Helper on the
+existing e2e `computed()` path: parse `color` + `backgroundColor` (walk ancestors if
+transparent) and assert ratio ≥ 4.5 for phone, “days left”, and `::placeholder`.
+Screenshots: those two screens at 1440. Existing phase 3/8 harnesses still expect
+`BRAND_RGB.white` on headings — those stay.
+
+### 11.3 Light mode — amend 1.14, do not overwrite it
+
+1.14 stays the **dark** theme (default). Light is an **additive** mapping of the same
+brand into semantic tokens. Dated Section 9 entry when implementation starts.
+
+**Default:** dark. First visit without `localStorage` is dark so every existing e2e stays
+deterministic. **Do not** follow `prefers-color-scheme` on first paint (would flake
+harnesses and surprise a product that has only ever been black).
+
+**Toggle:** `data-theme="dark" | "light"` on `<html>`. Tiny inline script in each
+`index.html` **before** React (same reason `body` is already `@apply bg-brand-black` —
+avoid a white flash). Persist `localStorage` key:
+
+- admin-web: `vedafit.admin.theme` (`"light"` | `"dark"`) — sibling of
+  `vedafit.admin.sidebarCollapsed`
+- super-admin: `vedafit.platform.theme` — **not** the same key (separate origin, separate
+  preference)
+
+Toggle control: icon button on the **Topbar**, right of the branch picker / left of Sign
+out, `aria-pressed`, `data-testid="theme-toggle"`. Not in the sidebar (collapse already
+lives there).
+
+**Tokens (CSS variables on `:root` / `[data-theme="light"]`).** Tailwind maps utilities to
+`var(...)`, not to `brand.black` in components:
+
+| Token | Dark (1.14) | Light |
+|---|---|---|
+| `--color-bg` | `#000000` | `#FEF9F5` |
+| `--color-surface` | `#1F1F1F` | `#FFFFFF` (or 4% tint of black on cream) |
+| `--color-fg` | `#FEF9F5` | `#141414` |
+| `--color-fg-muted` | Slice 0 `#C9C4BF` | `#5C5854` (**6.74:1** on cream, locked 2026-09-15) |
+| `--color-border` | white @ 10–20% | black @ 10–15% |
+| `--color-accent` | `#C9FF1F` | **same lime as fill only** |
+| `--color-accent-fg` | `#000000` | `#000000` (text **on** the lime button) |
+| `--color-accent-text` | `#C9FF1F` (links on black) | `#3D4D00` (**8.89:1** on cream; not lime) |
+| `--color-danger` | today’s `red-300` | `#9B1C1C` (**7.79:1** on cream) |
+| `--color-warning` | today’s `amber-300` | `#92400E` (**6.78:1** on cream) |
+
+Components use `bg-bg`, `text-fg`, `text-fg-muted`, `border-border`, `bg-accent`,
+`text-accent-fg` — **not** `bg-brand-black` / `text-brand-white` once Slice A/B migrate
+them. `brand.*` remains in `tailwind.config.ts` as the **source values** for the dark
+theme variables so 1.14 stays the named palette.
+
+**Accent decision (locked for this plan, confirm in Slice A with computed CSS):**
+
+- Primary **buttons stay lime** in both themes (`bg-accent` + `text-accent-fg` black). That
+  already matches `Button` primary today and still works on cream (black on `#C9FF1F` is
+  ~12:1).
+- **Do not** use lime for body/link/heading text in light mode.
+- Sidebar active state in light: lime fill + black label, or a 15% lime wash +
+  `accent-text` — pick whichever computed pair is ≥4.5:1.
+
+**Tailwind:** v3 `theme.extend.colors` → `{ bg: "var(--color-bg)", ... }`. No
+`darkMode: 'class'` parallel system; one `data-theme` attribute is enough. Do not
+introduce a third Tailwind `dark:` namespace that would drift from the tokens.
+
+**FOUC:** inline script sets `data-theme` from localStorage; `index.css` default
+`:root` is dark (1.14).
+
+### 11.4 What has to change (scale)
+
+There is **no shared component package**. Super Admin copied `Button` / `TextField` /
+`Select` / `StatusBadge` / shell. Token CSS can be duplicated in both `index.css` files
+(same as today’s duplicated `tailwind.config.ts` palette) — **do not** extract
+`packages/ui` in this work.
+
+| Area | Admin-web | Super-admin |
+|---|---|---|
+| `index.css` + `index.html` script | 1 | 1 |
+| `tailwind.config.ts` | 1 | 1 |
+| `useTheme` + Topbar toggle | new hook next to `useSidebarNav` | copy; own storage key |
+| Primitives (`Button`, `TextField`, `Select`, `StatusBadge`, `DataTable`, `form-control`, `Spinner`, `ConfirmDialog`) | ~8 files | ~7 files (no DataTable / form-control yet) |
+| Shell (`AppShell`, `Sidebar`, `Topbar`) | 3 | 3 |
+| Feature pages using `bg-brand-*` / `text-brand-*` | **~35** under `src/features` | **~8** |
+| Login | 1 | 1 |
+| Hardcoded Recharts `CHART` RGB in `DashboardPage` | **must** read `getComputedStyle` / CSS vars — today it bypasses Tailwind | Super Admin dashboard has no Recharts (flag if that changes) |
+| e2e `BRAND_RGB` + phase 3/4/… heading color asserts | keep as **dark-theme** expectations; new `e2e:theme` | Super Admin e2e 40/0 stays dark unless the new harness sets the key |
+
+Roughly **~55 admin-web files** and **~20 super-admin files** if Slice A/B replace
+`brand-black` / `brand-white` utilities. Slice 0 is the small `/30|/40` set only.
+
+### 11.5 Slice order
+
+| Slice | Scope | Proof |
+|---|---|---|
+| **0** | **Done 2026-09-15.** Solid `white-muted` `#C9C4BF` + replace failing `/30|/40` + placeholders + receding badges in **both** apps | Headed Chrome: **12.13:1** (`rgb(201, 196, 191)` on `rgb(0, 0, 0)`) for phone, days-left, both placeholders. `pnpm e2e:contrast` 8/0. No toggle. |
+| **A** | **Done 2026-09-15.** CSS variables + `data-theme` + admin-web migration + Topbar toggle + persist + Recharts from tokens | `vedafit.admin.theme` survives reload. Dark still 1.14 RGB. Light: phone **6.74:1**, heading **17.62:1**, accent-text **8.89:1**, lime button fill unchanged. Chart stroke lime. Ticks were planned as `rgba(20,20,20,0.55)` (**4.03:1**, fail); locked to solid `fg-muted` `#5C5854` **7.05:1** on white. `pnpm e2e:slice-a` **45/0**. Phase 3 **51/0**, Phase 8 **56/0**. |
+| **B** | **Done 2026-09-15.** Same tokens + toggle on super-admin (`vedafit.platform.theme`) | Phase 15 **40/0** in dark. Light: heading **17.62:1**, org link / ACTIVE **8.89:1**, placeholder **6.74:1**, TRIAL **6.78:1**, plan code **7.05:1**. Lime fill unchanged. `pnpm e2e:slice-b` **33/0**. Screenshots orgs / org detail / plans at 375/768/1440 both modes. |
+| **C** | **Done 2026-09-15.** Combined `e2e:theme` smoke across both apps | Dual-origin, one Chrome session. **Adds** key isolation (`vedafit.admin.theme` vs `vedafit.platform.theme` do not leak across `:5173` / `:5174`) and token parity (both CSS copies still resolve to the locked light RGBs). **Does not** redo A/B’s per-app matrix (chart ticks, status variants, 375/768/1440 shots). Sampled computed contrast both themes both apps + persist. `pnpm e2e:theme` **47/0**. |
+
+Do **not** one giant pass across both apps. Slices 0 → A → B → C shipped in that order.
+
+### 11.6 Out of scope / flags noticed in this audit
+
+- **Member Flutter app:** out. Different renderer; 1.14 there is a Dart `theme.dart`.
+- **Admin-web Slices 3/5** (dashboard type scale, form density at 375): still queued (10.22).
+  This work does not retune font sizes by breakpoint except where a contrast class sits on
+  the same node. “Typography according to screen size” is that other track.
+- **Super Admin responsive (10.22):** still gated on “is this used on a phone?”. Light mode
+  on a non-collapsing rail at 375 will look cramped; do not pretend Slice B is a mobile
+  retrofit.
+- **e2e will go red** if light becomes default or if phase 3 asserts `BRAND_RGB.white` after
+  components switch tokens without keeping dark values identical.
+- **`text-amber-300` / `text-red-300`:** Slice A maps these to `--color-warning` / `--color-danger`.
+  Light locked `#92400E` / `#9B1C1C` (6.78:1 / 7.79:1 on cream).
+- **Browser autofill / native `<select>`** still ignore CSS in some engines; Slice 0
+  cannot fix OS-drawn dropdowns.
+- **No `packages/ui`.** Duplicating tokens is the existing architecture. Extracting a
+  package would be a third project.
+- **Favicon / `theme-color` meta:** not set per theme today; optional in A (`<meta name="theme-color">` from the bg token).
+
+**Section 11 is Done.** Super Admin responsive (10.22 SA-1/2/3 — collapsible shell, DataTable,
+shared select chrome) is the logical next UI pass; it is still gated and was not started here.
+

@@ -27,11 +27,11 @@ export function ConfirmDialog({
       data-testid="confirm-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
     >
-      <div className="w-full max-w-md rounded-xl border border-brand-white/10 bg-brand-black-88 p-6">
-        <h2 id="confirm-title" className="text-lg font-semibold text-brand-white">
+      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6">
+        <h2 id="confirm-title" className="text-lg font-semibold text-fg">
           {title}
         </h2>
-        <p className="mt-2 text-sm text-brand-white/70">{message}</p>
+        <p className="mt-2 text-sm text-fg/70">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={onCancel} disabled={pending}>
             Cancel

@@ -17,7 +17,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={selectId} className="text-sm font-medium text-brand-white">
+      <label htmlFor={selectId} className="text-sm font-medium text-fg">
         {label}
       </label>
       <select
@@ -26,9 +26,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         className={[
-          "rounded-md bg-brand-black px-3 py-2 text-sm text-brand-white",
-          "border focus:outline-none focus:ring-2 focus:ring-brand-green",
-          error ? "border-red-400" : "border-brand-white/20",
+          "rounded-md bg-bg px-3 py-2 text-sm text-fg",
+          "border focus:outline-none focus:ring-2 focus:ring-accent",
+          error ? "border-danger" : "border-fg/20",
           className,
         ].join(" ")}
         {...props}
@@ -41,7 +41,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ))}
       </select>
       {error ? (
-        <p id={errorId} role="alert" className="text-xs text-red-300">
+        <p id={errorId} role="alert" className="text-xs text-danger">
           {error}
         </p>
       ) : null}

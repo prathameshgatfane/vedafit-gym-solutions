@@ -91,8 +91,8 @@ export function AttendancePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-brand-white">Attendance</h1>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <h1 className="text-2xl font-semibold text-fg">Attendance</h1>
+        <p className="mt-1 text-sm text-accent-muted">
           Who came in, and when. A member is recorded once a day — a second tap is a no-op, not a
           second visit.
         </p>
@@ -101,7 +101,7 @@ export function AttendancePage() {
       {ownRoster ? (
         <p
           data-testid="own-roster-banner"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
           This register is check-ins for members assigned to you — not the gym&apos;s full day.
         </p>
@@ -110,9 +110,9 @@ export function AttendancePage() {
       {today.data ? (
         <div
           data-testid="today-banner"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
-          <span className="font-semibold text-brand-white">
+          <span className="font-semibold text-fg">
             {formatRegisterDate(today.data.date)}
           </span>{" "}
           — {today.data.count} {today.data.count === 1 ? "member has" : "members have"} checked in
@@ -123,20 +123,20 @@ export function AttendancePage() {
       {canMark && checkInBranchId ? (
         <CheckInPanel branchId={checkInBranchId} branchName={checkInBranchName} />
       ) : canMark ? (
-        <div className="rounded-md border border-brand-white/10 bg-brand-black-88 px-4 py-3 text-sm text-brand-white/60">
+        <div className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-fg-muted">
           Pick a branch above before checking anyone in — attendance is recorded against the branch
           it happened at.
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-brand-white">
+        <h2 className="text-lg font-semibold text-fg">
           Register{registerDate ? ` — ${formatRegisterDate(registerDate)}` : ""}
         </h2>
 
         <div
           data-testid="attendance-filter-bar"
-          className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+          className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
         >
           <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -209,14 +209,14 @@ export function AttendancePage() {
         </div>
 
         {isError ? (
-          <div role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
             {apiErrorMessage(error, "Could not load the register")}
           </div>
         ) : null}
 
         <DataTable>
           <table data-testid="attendance-table" className="w-full text-left text-sm">
-            <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+            <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Time</th>
                 <th className="px-4 py-3 font-medium">Member</th>
@@ -227,19 +227,19 @@ export function AttendancePage() {
               </tr>
             </thead>
             <tbody
-              className={`divide-y divide-brand-white/5 transition-opacity ${
+              className={`divide-y divide-fg/5 transition-opacity ${
                 isFetching && !isPending ? "opacity-60" : ""
               }`}
             >
               {isPending ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                  <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                     Loading the register…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                  <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                     {overridesOnly
                       ? "No overrides on this day — everyone who came in was covered."
                       : ownRoster
@@ -253,34 +253,34 @@ export function AttendancePage() {
                     key={row.id}
                     data-testid="attendance-row"
                     data-member-id={row.memberId}
-                    className="bg-brand-black"
+                    className="bg-bg"
                   >
-                    <td className="px-4 py-3 text-brand-white/70">
+                    <td className="px-4 py-3 text-fg/70">
                       {formatCheckInTime(row.checkedInAt, timeZone)}
                     </td>
-                    <td className="px-4 py-3 font-medium text-brand-white">
+                    <td className="px-4 py-3 font-medium text-fg">
                       {row.member.firstName} {row.member.lastName}
                     </td>
-                    <td className="px-4 py-3 text-brand-white/50">{row.member.phone}</td>
-                    <td className="px-4 py-3 text-brand-white/50">{row.branch.name}</td>
+                    <td className="px-4 py-3 text-fg-muted">{row.member.phone}</td>
+                    <td className="px-4 py-3 text-fg-muted">{row.branch.name}</td>
                     <td className="px-4 py-3">
                       {row.overrideReason ? (
                         <span
                           data-testid="coverage-override"
-                          className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-xs font-medium text-amber-200"
+                          className="inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning"
                         >
                           Override · {overrideLabel(row.overrideReason)}
                         </span>
                       ) : (
                         <span
                           data-testid="coverage-covered"
-                          className="inline-flex items-center rounded-full border border-brand-green/40 bg-brand-green/10 px-2.5 py-0.5 text-xs font-medium text-brand-green"
+                          className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent-text"
                         >
                           Covered
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-brand-white/50">
+                    <td className="px-4 py-3 text-fg-muted">
                       {row.markedBy?.name ?? "—"}
                     </td>
                   </tr>
@@ -292,7 +292,7 @@ export function AttendancePage() {
 
         {pagination && pagination.totalPages > 1 ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-brand-white/50">
+            <p className="text-sm text-fg-muted">
               Page {pagination.page} of {pagination.totalPages} · {pagination.total} check-ins
             </p>
             <div className="flex gap-2">

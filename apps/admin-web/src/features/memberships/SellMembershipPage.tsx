@@ -30,7 +30,7 @@ export function SellMembershipPage() {
 
   if (member.isError || !member.data) {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
         {apiErrorMessage(member.error, "Could not load this member.")}
       </p>
     );
@@ -63,18 +63,18 @@ export function SellMembershipPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-brand-white">Sell a membership</h1>
-      <p className="mt-1 text-sm text-brand-green-muted">
+      <h1 className="text-2xl font-semibold text-fg">Sell a membership</h1>
+      <p className="mt-1 text-sm text-accent-muted">
         For {member.data.firstName} {member.data.lastName} · {member.data.phone}
       </p>
 
       <form
         noValidate
         onSubmit={handleSubmit}
-        className="mt-6 flex flex-col gap-4 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+        className="mt-6 flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
       >
         {sellablePlans.length === 0 ? (
-          <p className="rounded-md border border-brand-white/15 px-3 py-2 text-sm text-brand-white/70">
+          <p className="rounded-md border border-fg/15 px-3 py-2 text-sm text-fg/70">
             There are no active plans to sell. Create one under Membership plans first.
           </p>
         ) : (
@@ -97,14 +97,14 @@ export function SellMembershipPage() {
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
         />
-        <p className="-mt-2 text-xs text-brand-white/50">
+        <p className="-mt-2 text-xs text-fg-muted">
           Leave blank to start today. Backdating is allowed for signups entered late.
         </p>
 
         {selectedPlan ? (
           <p
             data-testid="snapshot-notice"
-            className="rounded-md border border-brand-green/25 bg-brand-green/5 px-3 py-2 text-sm text-brand-green-muted"
+            className="rounded-md border border-accent/25 bg-accent/5 px-3 py-2 text-sm text-accent-muted"
           >
             This term will be locked to {formatPrice(selectedPlan.price)} for{" "}
             {formatDuration(selectedPlan.durationDays)}. Later changes to the plan's price won't
@@ -113,7 +113,7 @@ export function SellMembershipPage() {
         ) : null}
 
         {formError ? (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         ) : null}

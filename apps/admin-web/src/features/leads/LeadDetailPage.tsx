@@ -16,8 +16,8 @@ import { useConvertLead, useLead, useTransitionLead } from "./useLeads";
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-brand-white/50">{label}</dt>
-      <dd className="mt-1 text-sm text-brand-white">{children}</dd>
+      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">{children}</dd>
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function LeadDetailPage() {
   if (isError || !lead) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this lead.")}
         </p>
         <Button variant="secondary" onClick={() => navigate("/leads")}>
@@ -97,17 +97,17 @@ export function LeadDetailPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link to="/leads" className="text-sm text-brand-green-muted hover:text-brand-green">
+        <Link to="/leads" className="text-sm text-accent-muted hover:text-accent-text">
           ← Back to leads
         </Link>
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 data-testid="lead-detail-heading" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="lead-detail-heading" className="text-2xl font-semibold text-fg">
             {lead.name}
           </h1>
-          <p className="mt-1 text-sm text-brand-green-muted">{lead.phone}</p>
+          <p className="mt-1 text-sm text-accent-muted">{lead.phone}</p>
           <div className="mt-2">
             <StatusBadge status={lead.status} />
           </div>
@@ -120,14 +120,14 @@ export function LeadDetailPage() {
       </div>
 
       {actionError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {actionError}
         </p>
       ) : null}
 
       <dl
         data-testid="lead-profile"
-        className="grid gap-5 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6 sm:grid-cols-2"
+        className="grid gap-5 rounded-lg border border-border bg-surface p-6 sm:grid-cols-2"
       >
         <Field label="Source">{lead.source ?? "—"}</Field>
         <Field label="Branch">{lead.branch?.name ?? "Unattributed"}</Field>
@@ -138,12 +138,12 @@ export function LeadDetailPage() {
       {lead.status === "CONVERTED" && lead.convertedMember ? (
         <p
           data-testid="converted-banner"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
           Converted to{" "}
           <Link
             to={`/members/${lead.convertedMember.id}`}
-            className="font-semibold text-brand-green hover:underline"
+            className="font-semibold text-accent-text hover:underline"
           >
             {lead.convertedMember.firstName} {lead.convertedMember.lastName}
           </Link>
@@ -154,10 +154,10 @@ export function LeadDetailPage() {
       {pipelineMoves.length > 0 ? (
         <section
           data-testid="pipeline-actions"
-          className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+          className="rounded-lg border border-border bg-surface p-6"
         >
-          <h2 className="text-lg font-semibold text-brand-white">Pipeline</h2>
-          <p className="mt-1 text-sm text-brand-white/50">
+          <h2 className="text-lg font-semibold text-fg">Pipeline</h2>
+          <p className="mt-1 text-sm text-fg-muted">
             Forward and skip are allowed. Backward among open statuses is not. Lost reopens only
             to Contacted.
           </p>
@@ -180,10 +180,10 @@ export function LeadDetailPage() {
       {open ? (
         <section
           data-testid="convert-panel"
-          className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+          className="rounded-lg border border-border bg-surface p-6"
         >
-          <h2 className="text-lg font-semibold text-brand-white">Convert to member</h2>
-          <p className="mt-1 text-sm text-brand-white/50">
+          <h2 className="text-lg font-semibold text-fg">Convert to member</h2>
+          <p className="mt-1 text-sm text-fg-muted">
             Creates a member with this phone in the same step. The lead then becomes read-only
             history.
           </p>

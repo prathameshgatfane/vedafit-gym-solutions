@@ -53,10 +53,10 @@ export function AssignMemberPanel({ trainerId, assignedMemberIds }: AssignMember
   return (
     <section
       data-testid="assign-member-panel"
-      className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+      className="rounded-lg border border-border bg-surface p-6"
     >
-      <h2 className="text-lg font-semibold text-brand-white">Assign a member</h2>
-      <p className="mt-1 text-sm text-brand-white/50">
+      <h2 className="text-lg font-semibold text-fg">Assign a member</h2>
+      <p className="mt-1 text-sm text-fg-muted">
         Search the gym roster. Assigned members see this trainer; unassigning drops that access.
       </p>
 
@@ -72,19 +72,19 @@ export function AssignMemberPanel({ trainerId, assignedMemberIds }: AssignMember
       </div>
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </p>
       ) : null}
 
       {search === "" ? (
-        <p className="mt-3 text-sm text-brand-white/40">Type a name or phone to find someone.</p>
+        <p className="mt-3 text-sm text-fg-muted">Type a name or phone to find someone.</p>
       ) : results.isPending ? (
-        <p className="mt-3 text-sm text-brand-white/50">Searching…</p>
+        <p className="mt-3 text-sm text-fg-muted">Searching…</p>
       ) : members.length === 0 ? (
-        <p className="mt-3 text-sm text-brand-white/50">No unassigned members match that search.</p>
+        <p className="mt-3 text-sm text-fg-muted">No unassigned members match that search.</p>
       ) : (
-        <ul className="mt-3 divide-y divide-brand-white/5 rounded-md border border-brand-white/10">
+        <ul className="mt-3 divide-y divide-fg/5 rounded-md border border-border">
           {members.map((member) => (
             <li
               key={member.id}
@@ -92,10 +92,10 @@ export function AssignMemberPanel({ trainerId, assignedMemberIds }: AssignMember
               className="flex items-center justify-between gap-3 px-3 py-2"
             >
               <div>
-                <p className="text-sm font-medium text-brand-white">
+                <p className="text-sm font-medium text-fg">
                   {member.firstName} {member.lastName}
                 </p>
-                <p className="text-xs text-brand-white/50">{member.phone}</p>
+                <p className="text-xs text-fg-muted">{member.phone}</p>
               </div>
               <Button
                 data-testid="assign-button"

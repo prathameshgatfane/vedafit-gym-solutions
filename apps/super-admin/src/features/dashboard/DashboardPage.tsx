@@ -10,20 +10,20 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 data-testid="dashboard-heading" className="text-2xl font-semibold text-brand-white">
+        <h1 data-testid="dashboard-heading" className="text-2xl font-semibold text-fg">
           Dashboard
         </h1>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <p className="mt-1 text-sm text-accent-muted">
           Signed in as {user?.name}. Counts come from the platform API — they are not computed here.
         </p>
       </div>
 
       {isPending ? (
-        <p className="text-sm text-brand-white/60">Loading fleet counts…</p>
+        <p className="text-sm text-fg-muted">Loading fleet counts…</p>
       ) : null}
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {apiErrorMessage(error, "Could not load the dashboard.")}
         </p>
       ) : null}
@@ -75,11 +75,11 @@ function StatCard({
 }) {
   const body = (
     <>
-      <dt className="text-xs uppercase tracking-wide text-brand-white/50">{label}</dt>
-      <dd data-testid={testId} className="mt-2 text-3xl font-semibold text-brand-white">
+      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dd data-testid={testId} className="mt-2 text-3xl font-semibold text-fg">
         {value}
       </dd>
-      {hint ? <p className="mt-2 text-xs text-brand-white/40">{hint}</p> : null}
+      {hint ? <p className="mt-2 text-xs text-fg-muted">{hint}</p> : null}
     </>
   );
 
@@ -87,7 +87,7 @@ function StatCard({
     return (
       <Link
         to={to}
-        className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 hover:border-brand-green/40"
+        className="rounded-lg border border-border bg-surface p-4 hover:border-accent/40"
       >
         {body}
       </Link>
@@ -95,6 +95,6 @@ function StatCard({
   }
 
   return (
-    <div className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-4">{body}</div>
+    <div className="rounded-lg border border-border bg-surface p-4">{body}</div>
   );
 }

@@ -124,6 +124,8 @@ export const BRAND_RGB = {
   green: "rgb(201, 255, 31)",
   greenMuted: "rgb(233, 255, 165)",
   white: "rgb(254, 249, 245)",
+  /** Slice 0 solid muted — not `white` at 40% alpha. Locked headed Chrome 2026-09-15. */
+  whiteMuted: "rgb(201, 196, 191)",
 } as const;
 
 /** Reads a *computed* style off the live element — not the class attribute. */

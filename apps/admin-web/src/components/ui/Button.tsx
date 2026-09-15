@@ -8,16 +8,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * All colours come from the Section 1.14 brand theme (`brand.*` in tailwind.config.ts) — no raw
- * hex anywhere, so the palette stays correctable in one place once exact values are sampled.
+ * Colours come from semantic tokens (`bg-accent`, `text-fg`, …) backed by CSS variables in
+ * `index.css`. Dark values stay locked to Section 1.14; lime is fill-only (`text-accent-fg`).
  */
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-brand-green text-brand-black hover:bg-brand-green-muted focus-visible:outline-brand-green",
+    "bg-accent text-accent-fg hover:brightness-110 focus-visible:outline-accent",
   secondary:
-    "bg-brand-black-88 text-brand-white border border-brand-white/20 hover:border-brand-green focus-visible:outline-brand-green",
+    "bg-surface text-fg border border-fg/20 hover:border-accent focus-visible:outline-accent",
   danger:
-    "bg-brand-black-88 text-red-300 border border-red-400/40 hover:border-red-400 focus-visible:outline-red-400",
+    "bg-surface text-danger border border-danger/40 hover:border-danger focus-visible:outline-danger",
 };
 
 export function Button({

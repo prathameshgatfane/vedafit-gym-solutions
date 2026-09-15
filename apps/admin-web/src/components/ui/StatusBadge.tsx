@@ -25,34 +25,34 @@ export type BadgeStatus =
  * rather than grey, because unlike an expired membership they are *someone's job today*.
  */
 const styles: Record<BadgeStatus, string> = {
-  ACTIVE: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  INACTIVE: "bg-brand-white/10 text-brand-white/70 border-brand-white/25",
-  ARCHIVED: "bg-brand-black text-brand-white/40 border-brand-white/15",
-  FROZEN: "bg-brand-green-muted/15 text-brand-green-muted border-brand-green-muted/40",
-  EXPIRED: "bg-brand-white/10 text-brand-white/60 border-brand-white/25",
-  CANCELLED: "bg-brand-black text-brand-white/40 border-brand-white/15",
+  ACTIVE: "bg-accent/15 text-accent-text border-accent/40",
+  INACTIVE: "bg-fg/10 text-fg/70 border-fg/25",
+  ARCHIVED: "bg-bg text-fg-muted border-fg/15",
+  FROZEN: "bg-accent-muted/15 text-accent-muted border-accent-muted/40",
+  EXPIRED: "bg-fg/10 text-fg-muted border-fg/25",
+  CANCELLED: "bg-bg text-fg-muted border-fg/15",
 
   // Invoices — PAID is the settled, nothing-to-do state, so it gets the green.
-  PAID: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  UNPAID: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  PARTIALLY_PAID: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  DRAFT: "bg-brand-white/10 text-brand-white/60 border-brand-white/25",
+  PAID: "bg-accent/15 text-accent-text border-accent/40",
+  UNPAID: "bg-warning/10 text-warning border-warning/40",
+  PARTIALLY_PAID: "bg-warning/10 text-warning border-warning/40",
+  DRAFT: "bg-fg/10 text-fg-muted border-fg/25",
 
   // Payments — SUCCESS is green via ACTIVE's sibling; a reversal is a normal outcome, not a fault.
-  SUCCESS: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  REFUNDED: "bg-brand-white/10 text-brand-white/60 border-brand-white/25",
-  PENDING: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  FAILED: "bg-red-500/10 text-red-300 border-red-400/40",
+  SUCCESS: "bg-accent/15 text-accent-text border-accent/40",
+  REFUNDED: "bg-fg/10 text-fg-muted border-fg/25",
+  PENDING: "bg-warning/10 text-warning border-warning/40",
+  FAILED: "bg-danger/10 text-danger border-danger/40",
 
   // Leads — NEW and TRIAL_SCHEDULED are someone's job today; CONVERTED is settled; LOST recedes.
-  NEW: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  CONTACTED: "bg-brand-green-muted/15 text-brand-green-muted border-brand-green-muted/40",
-  TRIAL_SCHEDULED: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  CONVERTED: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  LOST: "bg-brand-black text-brand-white/40 border-brand-white/15",
+  NEW: "bg-warning/10 text-warning border-warning/40",
+  CONTACTED: "bg-accent-muted/15 text-accent-muted border-accent-muted/40",
+  TRIAL_SCHEDULED: "bg-accent/15 text-accent-text border-accent/40",
+  CONVERTED: "bg-accent/15 text-accent-text border-accent/40",
+  LOST: "bg-bg text-fg-muted border-fg/15",
 
-  QUEUED: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  SENT: "bg-brand-green/15 text-brand-green border-brand-green/40",
+  QUEUED: "bg-warning/10 text-warning border-warning/40",
+  SENT: "bg-accent/15 text-accent-text border-accent/40",
 };
 
 /** `PARTIALLY_PAID` is not a word. */

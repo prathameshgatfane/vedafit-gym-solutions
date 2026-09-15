@@ -1,11 +1,11 @@
 type BadgeStatus = "ACTIVE" | "SUSPENDED" | "TRIAL" | "PAST_DUE" | "CANCELLED";
 
 const styles: Record<BadgeStatus, string> = {
-  ACTIVE: "bg-brand-green/15 text-brand-green border-brand-green/40",
-  SUSPENDED: "bg-red-500/10 text-red-300 border-red-400/40",
-  TRIAL: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  PAST_DUE: "bg-amber-400/10 text-amber-300 border-amber-400/40",
-  CANCELLED: "bg-brand-black text-brand-white/40 border-brand-white/15",
+  ACTIVE: "bg-accent/15 text-accent-text border-accent/40",
+  SUSPENDED: "bg-danger/10 text-danger border-danger/40",
+  TRIAL: "bg-warning/10 text-warning border-warning/40",
+  PAST_DUE: "bg-warning/10 text-warning border-warning/40",
+  CANCELLED: "bg-bg text-fg-muted border-fg/15",
 };
 
 export function StatusBadge({ status }: { status: BadgeStatus }) {

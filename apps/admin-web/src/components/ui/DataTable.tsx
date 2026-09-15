@@ -52,16 +52,16 @@ export function DataTable({
         ref={scrollerRef}
         data-testid="data-table-scroll"
         className={[
-          "overflow-x-auto rounded-lg border border-brand-white/10",
+          "overflow-x-auto rounded-lg border border-border",
           fit ? "[&_table]:w-full" : "[&_table]:min-w-[40rem] [&_table]:w-full",
           "[&_th]:whitespace-nowrap [&_td]:whitespace-nowrap",
           "[&_th:first-child]:sticky [&_th:first-child]:left-0 [&_th:first-child]:z-20",
-          "[&_th:first-child]:bg-brand-black-88",
-          "[&_th:first-child]:shadow-[1px_0_0_0_rgba(254,249,245,0.08)]",
+          "[&_th:first-child]:bg-surface",
+          "[&_th:first-child]:shadow-[1px_0_0_0_var(--color-border)]",
           "[&_td:first-child]:sticky [&_td:first-child]:left-0 [&_td:first-child]:z-10",
-          // inherit so `tr:hover:bg-brand-white/5` tints the pin instead of leaving a black hole
+          // inherit so `tr:hover:bg-fg/5` tints the pin instead of leaving a black hole
           "[&_td:first-child]:bg-inherit",
-          "[&_td:first-child]:shadow-[1px_0_0_0_rgba(254,249,245,0.08)]",
+          "[&_td:first-child]:shadow-[1px_0_0_0_var(--color-border)]",
         ].join(" ")}
       >
         {children}
@@ -70,11 +70,11 @@ export function DataTable({
         <div
           data-testid="data-table-fade"
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-14 items-center justify-end rounded-r-lg bg-gradient-to-l from-brand-black from-40% via-brand-black/80 to-transparent pr-1.5"
+          className="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-14 items-center justify-end rounded-r-lg bg-gradient-to-l from-bg from-40% via-bg/80 to-transparent pr-1.5"
         >
           <svg
             viewBox="0 0 24 24"
-            className="h-5 w-5 shrink-0 text-brand-green"
+            className="h-5 w-5 shrink-0 text-accent-text"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"

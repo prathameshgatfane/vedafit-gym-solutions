@@ -19,7 +19,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <label htmlFor={selectId} className="text-sm font-medium text-brand-white">
+      <label htmlFor={selectId} className="text-sm font-medium text-fg">
         {label}
       </label>
       <div className="relative">
@@ -31,7 +31,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           className={[
             SELECT_CONTROL_CLASS,
             "py-2",
-            error ? "border-red-400" : "border-brand-white/20",
+            error ? "border-danger" : "border-fg/20",
             className,
           ].join(" ")}
           {...props}
@@ -46,7 +46,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         <SelectChevron />
       </div>
       {error ? (
-        <p id={errorId} role="alert" className="text-xs text-red-300">
+        <p id={errorId} role="alert" className="text-xs text-danger">
           {error}
         </p>
       ) : null}

@@ -90,7 +90,7 @@ export function MemberFormPage({ mode }: MemberFormPageProps) {
 
   if (isEdit && existing.isError) {
     return (
-      <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
         {apiErrorMessage(existing.error, "Could not load this member.")}
       </p>
     );
@@ -98,17 +98,17 @@ export function MemberFormPage({ mode }: MemberFormPageProps) {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-brand-white">
+      <h1 className="text-2xl font-semibold text-fg">
         {isEdit ? "Edit member" : "Add member"}
       </h1>
-      <p className="mt-1 text-sm text-brand-green-muted">
+      <p className="mt-1 text-sm text-accent-muted">
         {isEdit ? "Update this member's details." : "Register a new member for your gym."}
       </p>
 
       <form
         noValidate
         onSubmit={handleSubmit(onSubmit)}
-        className="mt-6 flex flex-col gap-4 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+        className="mt-6 flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
@@ -160,7 +160,7 @@ export function MemberFormPage({ mode }: MemberFormPageProps) {
         </div>
 
         {formError ? (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         ) : null}

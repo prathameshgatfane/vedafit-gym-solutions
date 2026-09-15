@@ -19,8 +19,8 @@ import {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-brand-white/50">{label}</dt>
-      <dd className="mt-1 text-sm text-brand-white">{children}</dd>
+      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">{children}</dd>
     </div>
   );
 }
@@ -55,7 +55,7 @@ export function MembershipDetailPage() {
   if (isError || !membership) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this membership.")}
         </p>
         <Button variant="secondary" onClick={() => navigate("/memberships")}>
@@ -136,18 +136,18 @@ export function MembershipDetailPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link to="/memberships" className="text-sm text-brand-green-muted hover:text-brand-green">
+        <Link to="/memberships" className="text-sm text-accent-muted hover:text-accent-text">
           ← Back to memberships
         </Link>
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 data-testid="membership-heading" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="membership-heading" className="text-2xl font-semibold text-fg">
             {membership.plan.name}
           </h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
-            <Link to={`/members/${membership.memberId}`} className="hover:text-brand-green">
+          <p className="mt-1 text-sm text-accent-muted">
+            <Link to={`/members/${membership.memberId}`} className="hover:text-accent-text">
               {membership.member.firstName} {membership.member.lastName}
             </Link>{" "}
             · {membership.member.phone}
@@ -155,7 +155,7 @@ export function MembershipDetailPage() {
           <div className="mt-2 flex items-center gap-2">
             <StatusBadge status={membership.status} />
             {membership.isUpcoming ? (
-              <span className="text-xs text-brand-white/50">starts {membership.startDate}</span>
+              <span className="text-xs text-fg-muted">starts {membership.startDate}</span>
             ) : null}
           </div>
         </div>
@@ -164,19 +164,19 @@ export function MembershipDetailPage() {
       {notice ? (
         <p
           data-testid="action-notice"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
           {notice}
         </p>
       ) : null}
 
       {actionError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {actionError}
         </p>
       ) : null}
 
-      <dl className="grid gap-5 rounded-lg border border-brand-white/10 bg-brand-black-88 p-6 sm:grid-cols-2">
+      <dl className="grid gap-5 rounded-lg border border-border bg-surface p-6 sm:grid-cols-2">
         <Field label="Price paid">
           {/* The snapshot, not the plan's price today — that's the whole point of 1.15.3. */}
           <span data-testid="price-at-purchase">{formatPrice(membership.priceAtPurchase)}</span>
@@ -189,7 +189,7 @@ export function MembershipDetailPage() {
         <Field label="Days remaining">
           <span data-testid="days-remaining">{membership.daysRemaining}</span>
           {membership.status === "FROZEN" ? (
-            <span className="ml-2 text-xs text-brand-white/50">(paused)</span>
+            <span className="ml-2 text-xs text-fg-muted">(paused)</span>
           ) : null}
         </Field>
         <Field label="Days frozen so far">{membership.totalFrozenDays}</Field>
@@ -197,7 +197,7 @@ export function MembershipDetailPage() {
           <Field label="Previous term">
             <Link
               to={`/memberships/${membership.previousMembershipId}`}
-              className="text-brand-green-muted hover:text-brand-green"
+              className="text-accent-muted hover:text-accent-text"
             >
               View the term this one followed
             </Link>
@@ -207,7 +207,7 @@ export function MembershipDetailPage() {
 
       <div
         data-testid="lifecycle-actions"
-        className="flex flex-wrap gap-2 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4"
+        className="flex flex-wrap gap-2 rounded-lg border border-border bg-surface p-4"
       >
         {/* Buttons are shown only when both the permission and the transition matrix allow the
             move; the API re-checks both regardless. */}
@@ -251,7 +251,7 @@ export function MembershipDetailPage() {
         ) : null}
 
         {membership.status === "EXPIRED" || membership.status === "CANCELLED" ? (
-          <p className="self-center text-sm text-brand-white/50">
+          <p className="self-center text-sm text-fg-muted">
             This term is closed. {membership.status === "EXPIRED" ? "Renew it" : "Sell a new one"}{" "}
             to give this member access again.
           </p>
@@ -259,9 +259,9 @@ export function MembershipDetailPage() {
       </div>
 
       {panel === "renew" ? (
-        <div className="rounded-lg border border-brand-green/30 bg-brand-black-88 p-4">
-          <h2 className="text-sm font-semibold text-brand-white">Renew this membership</h2>
-          <p className="mt-1 text-sm text-brand-white/70">
+        <div className="rounded-lg border border-accent/30 bg-surface p-4">
+          <h2 className="text-sm font-semibold text-fg">Renew this membership</h2>
+          <p className="mt-1 text-sm text-fg/70">
             A renewal creates a new term starting the day after this one ends, priced at the
             plan's current rate. This term is left untouched.
           </p>
@@ -289,12 +289,12 @@ export function MembershipDetailPage() {
       ) : null}
 
       {panel === "change-plan" ? (
-        <div className="rounded-lg border border-red-400/40 bg-brand-black-88 p-4">
-          <h2 className="text-sm font-semibold text-brand-white">Change plan mid-term</h2>
+        <div className="rounded-lg border border-danger/40 bg-surface p-4">
+          <h2 className="text-sm font-semibold text-fg">Change plan mid-term</h2>
           {/* Stated in days *and* money, up front. Locked Decision 1.16.1 keeps this endpoint
               from moving money, so the operator needs both numbers to choose between waiting for
               the term to end and refunding the difference deliberately. */}
-          <p data-testid="forfeit-warning" className="mt-1 text-sm text-red-300">
+          <p data-testid="forfeit-warning" className="mt-1 text-sm text-danger">
             This cancels the current term and starts the new plan today.{" "}
             {membership.daysRemaining} unused{" "}
             {membership.daysRemaining === 1 ? "day" : "days"} will be forfeited
@@ -334,9 +334,9 @@ export function MembershipDetailPage() {
         <div
           role="alertdialog"
           aria-label="Confirm cancellation"
-          className="rounded-lg border border-red-400/40 bg-brand-black-88 p-4"
+          className="rounded-lg border border-danger/40 bg-surface p-4"
         >
-          <p className="text-sm text-brand-white">
+          <p className="text-sm text-fg">
             Cancel this membership? Cancelling is final — it can't be undone, and giving this
             member access again means selling a new membership.
           </p>

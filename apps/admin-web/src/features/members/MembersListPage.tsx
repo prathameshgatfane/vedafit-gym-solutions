@@ -71,8 +71,8 @@ export function MembersListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-white">Members</h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
+          <h1 className="text-2xl font-semibold text-fg">Members</h1>
+          <p className="mt-1 text-sm text-accent-muted">
             {pagination
               ? `${pagination.total} ${pagination.total === 1 ? "member" : "members"}${
                   hasFilters ? " matching your filters" : ""
@@ -88,7 +88,7 @@ export function MembersListPage() {
       {ownRoster ? (
         <p
           data-testid="own-roster-banner"
-          className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted"
+          className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted"
         >
           This list is the members assigned to you — not the gym&apos;s full roster.
         </p>
@@ -96,7 +96,7 @@ export function MembersListPage() {
 
       <div
         data-testid="members-filter-bar"
-        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
       >
         <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -148,14 +148,14 @@ export function MembersListPage() {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load members.")}
         </p>
       ) : null}
 
       <DataTable>
         <table data-testid="members-table" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Name</th>
               <th scope="col" className="px-4 py-3 font-medium">Phone</th>
@@ -167,19 +167,19 @@ export function MembersListPage() {
           <tbody
             // Dimmed while a background refetch is in flight, so the table visibly belongs to the
             // filters being typed rather than looking stale-but-authoritative.
-            className={`divide-y divide-brand-white/5 transition-opacity ${
+            className={`divide-y divide-fg/5 transition-opacity ${
               isFetching && !isPending ? "opacity-60" : ""
             }`}
           >
             {isPending ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   Loading members…
                 </td>
               </tr>
             ) : members.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   {hasFilters
                     ? "No members match those filters."
                     : ownRoster
@@ -189,21 +189,21 @@ export function MembersListPage() {
               </tr>
             ) : (
               members.map((member) => (
-                <tr key={member.id} className="bg-brand-black hover:bg-brand-white/5">
+                <tr key={member.id} className="bg-bg hover:bg-fg/5">
                   <td className="px-4 py-3">
                     <Link
                       to={`/members/${member.id}`}
-                      className="font-medium text-brand-white hover:text-brand-green"
+                      className="font-medium text-fg hover:text-accent-text"
                     >
                       {member.firstName} {member.lastName}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">{member.phone}</td>
-                  <td className="px-4 py-3 text-brand-white/70">{member.email ?? "—"}</td>
+                  <td className="px-4 py-3 text-fg/70">{member.phone}</td>
+                  <td className="px-4 py-3 text-fg/70">{member.email ?? "—"}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={member.status} />
                   </td>
-                  <td className="px-4 py-3 text-brand-white/50">
+                  <td className="px-4 py-3 text-fg-muted">
                     {new Date(member.createdAt).toLocaleDateString()}
                   </td>
                 </tr>
@@ -215,7 +215,7 @@ export function MembersListPage() {
 
       {pagination && pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
+          <p data-testid="pagination-summary" className="text-sm text-fg-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">

@@ -32,6 +32,18 @@ cd apps/admin-web && pnpm e2e
 # 4a2. Slice 1 shell — drawer at 375, collapse persistence at 768/1440
 cd apps/admin-web && pnpm e2e:responsive
 
+# 4a3. Slice 0 muted-text contrast — Memberships + Super Admin Organizations.
+#    Super Admin must be up on :5174. Headed Chrome locks brand.white-muted.
+cd apps/admin-web && E2E_HEADFUL=1 pnpm e2e:contrast
+
+# 4a4. Slice A — admin-web tokens + theme toggle (not Super Admin).
+cd apps/admin-web && E2E_HEADFUL=1 pnpm e2e:slice-a
+
+# 4a5. Slice C — combined theme smoke (both apps, one Chrome session). Super Admin must
+#    be up on :5174. Does not replace e2e:slice-a / e2e:slice-b (those own the per-app
+#    matrix). This pass proves key isolation + token parity across origins.
+cd apps/admin-web && E2E_HEADFUL=1 pnpm e2e:theme
+
 # 4b. Phase 4 — members CRUD. Reset the fixtures first; the script is idempotent.
 cd apps/api && pnpm tsx scripts/phase4-fixtures.ts
 cd apps/admin-web && pnpm e2e:members
@@ -88,6 +100,7 @@ they are regenerated on every run, so committing them would just be binary churn
 | `E2E_CHROME`   | autodetected                   | Path to a Chrome/Chromium binary     |
 | `E2E_HEADFUL`  | unset (headless)               | Set to `1` to watch the run          |
 | `E2E_APP_URL`  | `http://localhost:5173`        | Admin web origin                     |
+| `E2E_SUPER_URL`| `http://localhost:5174`        | Super Admin origin (contrast + theme)|
 | `E2E_API_URL`  | `http://localhost:4000/api/v1` | API origin                           |
 | `E2E_EMAIL`    | `owner@demo-gym.test`          | Seeded login                         |
 | `E2E_PASSWORD` | `ChangeMe123!`                 | Seeded password                      |

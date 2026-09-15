@@ -43,12 +43,12 @@ export function MemberMembershipsPanel({ memberId, canSell }: MemberMembershipsP
   return (
     <section
       data-testid="member-memberships"
-      className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6"
+      className="rounded-lg border border-border bg-surface p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-brand-white">Memberships</h2>
-          <p className="mt-1 text-sm text-brand-white/50">
+          <h2 className="text-lg font-semibold text-fg">Memberships</h2>
+          <p className="mt-1 text-sm text-fg-muted">
             Every term this member has held, newest first.
           </p>
         </div>
@@ -63,29 +63,29 @@ export function MemberMembershipsPanel({ memberId, canSell }: MemberMembershipsP
       </div>
 
       {isError ? (
-        <p role="alert" className="mt-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {apiErrorMessage(error, "Could not load this member's memberships.")}
         </p>
       ) : null}
 
       {isPending ? (
-        <p className="mt-4 text-sm text-brand-white/50">Loading memberships…</p>
+        <p className="mt-4 text-sm text-fg-muted">Loading memberships…</p>
       ) : memberships.length === 0 ? (
-        <p className="mt-4 text-sm text-brand-white/50">
+        <p className="mt-4 text-sm text-fg-muted">
           No memberships yet.{canCreate && canSell ? " Sell one to get this member started." : ""}
         </p>
       ) : (
-        <ul className="mt-4 divide-y divide-brand-white/5">
+        <ul className="mt-4 divide-y divide-fg/5">
           {memberships.map((membership) => (
             <li key={membership.id} className="flex items-center justify-between gap-4 py-3">
               <div>
                 <Link
                   to={`/memberships/${membership.id}`}
-                  className="text-sm font-medium text-brand-white hover:text-brand-green"
+                  className="text-sm font-medium text-fg hover:text-accent-text"
                 >
                   {membership.plan.name}
                 </Link>
-                <p className="text-xs text-brand-white/50">
+                <p className="text-xs text-fg-muted">
                   {membership.startDate} → {membership.endDate} ·{" "}
                   {formatPrice(membership.priceAtPurchase)}
                 </p>
@@ -98,7 +98,7 @@ export function MemberMembershipsPanel({ memberId, canSell }: MemberMembershipsP
 
       {/* A live term exists, so the way to extend it is renewal — which is on the term itself. */}
       {canCreate && canSell && hasLiveTerm ? (
-        <p className="mt-4 text-xs text-brand-white/40">
+        <p className="mt-4 text-xs text-fg-muted">
           This member already has a live membership. Open it to renew, freeze or change the plan.
         </p>
       ) : null}

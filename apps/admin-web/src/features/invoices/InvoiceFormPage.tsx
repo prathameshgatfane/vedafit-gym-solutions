@@ -57,15 +57,15 @@ export function InvoiceFormPage() {
   return (
     <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-5">
       <div>
-        <h1 className="text-2xl font-semibold text-brand-white">Raise an invoice</h1>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <h1 className="text-2xl font-semibold text-fg">Raise an invoice</h1>
+        <p className="mt-1 text-sm text-accent-muted">
           For one-off charges. The amount can't be edited afterwards — a wrong bill is cancelled
           and reissued.
         </p>
       </div>
 
       {formError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {formError}
         </p>
       ) : null}

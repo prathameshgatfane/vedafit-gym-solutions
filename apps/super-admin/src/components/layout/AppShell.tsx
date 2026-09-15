@@ -6,7 +6,7 @@ export function AppShell() {
   return (
     <div
       data-testid="app-shell"
-      className="flex min-h-screen flex-col bg-brand-black text-brand-white md:flex-row"
+      className="flex min-h-screen flex-col bg-bg text-fg md:flex-row"
     >
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">

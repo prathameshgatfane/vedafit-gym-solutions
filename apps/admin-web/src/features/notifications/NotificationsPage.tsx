@@ -67,10 +67,10 @@ export function NotificationsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 data-testid="notifications-heading" className="text-2xl font-semibold text-brand-white">
+          <h1 data-testid="notifications-heading" className="text-2xl font-semibold text-fg">
             Notifications
           </h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
+          <p className="mt-1 text-sm text-accent-muted">
             {pagination
               ? `${pagination.total} ${pagination.total === 1 ? "log" : "logs"}`
               : "Loading notification history…"}
@@ -81,26 +81,26 @@ export function NotificationsPage() {
         </Button>
       </div>
 
-      <p className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted">
+      <p className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted">
         Log-only sender — nothing leaves this gym yet. The unique key is one SMS per member event
         per gym-local day, so running twice today will not double-queue.
       </p>
 
       {runMessage ? (
-        <p role="status" data-testid="run-result" className="text-sm text-brand-white">
+        <p role="status" data-testid="run-result" className="text-sm text-fg">
           {runMessage}
         </p>
       ) : null}
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load notification logs.")}
         </p>
       ) : null}
 
       <div
         data-testid="notifications-filter-bar"
-        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
       >
         <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -139,7 +139,7 @@ export function NotificationsPage() {
 
       <DataTable>
         <table data-testid="notifications-table" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th className="px-4 py-3 font-medium">When</th>
               <th className="px-4 py-3 font-medium">Member</th>
@@ -149,17 +149,17 @@ export function NotificationsPage() {
             </tr>
           </thead>
           <tbody
-            className={`divide-y divide-brand-white/5 ${isFetching && !isPending ? "opacity-60" : ""}`}
+            className={`divide-y divide-fg/5 ${isFetching && !isPending ? "opacity-60" : ""}`}
           >
             {isPending ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   Loading notification history…
                 </td>
               </tr>
             ) : logs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
                   No notifications yet.
                 </td>
               </tr>
@@ -170,21 +170,21 @@ export function NotificationsPage() {
                   data-testid="notification-row"
                   data-log-id={log.id}
                   data-status={log.status}
-                  className="bg-brand-black"
+                  className="bg-bg"
                 >
-                  <td className="px-4 py-3 text-brand-white/70">{log.localDate}</td>
-                  <td className="px-4 py-3 text-brand-white">
+                  <td className="px-4 py-3 text-fg/70">{log.localDate}</td>
+                  <td className="px-4 py-3 text-fg">
                     {log.member
                       ? `${log.member.firstName} ${log.member.lastName}`
                       : "—"}
                   </td>
-                  <td className="px-4 py-3 text-brand-white">
+                  <td className="px-4 py-3 text-fg">
                     {NOTIFICATION_EVENT_LABELS[log.event as NotificationEvent] ?? log.event}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={log.status} />
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">{log.body}</td>
+                  <td className="px-4 py-3 text-fg/70">{log.body}</td>
                 </tr>
               ))
             )}
@@ -193,15 +193,15 @@ export function NotificationsPage() {
       </DataTable>
 
       {templates.data && templates.data.length > 0 ? (
-        <section className="rounded-lg border border-brand-white/10 bg-brand-black-88 p-6">
-          <h2 className="text-lg font-semibold text-brand-white">Templates</h2>
+        <section className="rounded-lg border border-border bg-surface p-6">
+          <h2 className="text-lg font-semibold text-fg">Templates</h2>
           <ul data-testid="notification-templates" className="mt-3 space-y-3 text-sm">
             {templates.data.map((template) => (
               <li key={template.id}>
-                <p className="font-medium text-brand-white">
+                <p className="font-medium text-fg">
                   {NOTIFICATION_EVENT_LABELS[template.event]} · {template.channel}
                 </p>
-                <p className="text-brand-white/60">{template.body}</p>
+                <p className="text-fg-muted">{template.body}</p>
               </li>
             ))}
           </ul>

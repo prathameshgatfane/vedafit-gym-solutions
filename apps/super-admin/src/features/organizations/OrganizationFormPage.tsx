@@ -37,8 +37,8 @@ export function OrganizationFormPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <h1 className="text-2xl font-semibold text-brand-white">New organization</h1>
-      <p className="mt-1 text-sm text-brand-green-muted">
+      <h1 className="text-2xl font-semibold text-fg">New organization</h1>
+      <p className="mt-1 text-sm text-accent-muted">
         Provisions a Trial organization. Plan and status are set by the server — they are not
         fields on this form. The owner signs in through gym staff login, not Super Admin.
       </p>
@@ -82,7 +82,7 @@ export function OrganizationFormPage() {
           {...register("branchName")}
         />
 
-        <h2 className="mt-4 text-lg font-semibold text-brand-white">Owner account</h2>
+        <h2 className="mt-4 text-lg font-semibold text-fg">Owner account</h2>
         <TextField
           label="Owner name"
           error={errors.ownerName?.message}
@@ -103,7 +103,7 @@ export function OrganizationFormPage() {
         />
 
         {formError ? (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         ) : null}

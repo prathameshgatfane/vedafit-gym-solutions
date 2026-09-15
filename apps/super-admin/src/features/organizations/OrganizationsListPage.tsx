@@ -63,8 +63,8 @@ export function OrganizationsListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-white">Organizations</h1>
-          <p className="mt-1 text-sm text-brand-green-muted">
+          <h1 className="text-2xl font-semibold text-fg">Organizations</h1>
+          <p className="mt-1 text-sm text-accent-muted">
             {pagination
               ? `${pagination.total} ${pagination.total === 1 ? "organization" : "organizations"}${
                   hasFilters ? " matching your filters" : ""
@@ -131,28 +131,28 @@ export function OrganizationsListPage() {
           </Button>
         ) : null}
         {isFetching && !isPending ? (
-          <span className="self-end text-xs text-brand-white/40">Updating…</span>
+          <span className="self-end text-xs text-fg-muted">Updating…</span>
         ) : null}
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {apiErrorMessage(error, "Could not load organizations.")}
         </p>
       ) : null}
 
-      {isPending ? <p className="text-sm text-brand-white/60">Loading organizations…</p> : null}
+      {isPending ? <p className="text-sm text-fg-muted">Loading organizations…</p> : null}
 
       {!isPending && !isError && organizations.length === 0 ? (
-        <p className="rounded-lg border border-brand-white/10 bg-brand-black-88 px-4 py-8 text-center text-sm text-brand-white/60">
+        <p className="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-fg-muted">
           {hasFilters ? "No organizations match those filters." : "No organizations yet."}
         </p>
       ) : null}
 
       {organizations.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-brand-white/10">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table data-testid="organizations-table" className="min-w-full text-left text-sm">
-            <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+            <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Organization</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -162,15 +162,15 @@ export function OrganizationsListPage() {
             </thead>
             <tbody>
               {organizations.map((org) => (
-                <tr key={org.id} className="border-t border-brand-white/10">
+                <tr key={org.id} className="border-t border-border">
                   <td className="px-4 py-3">
                     <Link
                       to={`/organizations/${org.id}`}
-                      className="font-medium text-brand-green hover:underline"
+                      className="font-medium text-accent-text hover:underline"
                     >
                       {org.name}
                     </Link>
-                    <p className="text-xs text-brand-white/50">
+                    <p className="text-xs text-fg-muted">
                       {org.slug} · {org.email}
                     </p>
                   </td>
@@ -181,13 +181,13 @@ export function OrganizationsListPage() {
                     {org.subscription ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge status={org.subscription.status} />
-                        <span className="text-brand-white/70">{org.subscription.planCode}</span>
+                        <span className="text-fg/70">{org.subscription.planCode}</span>
                       </div>
                     ) : (
-                      <span className="text-brand-white/40">None</span>
+                      <span className="text-fg-muted">None</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-brand-white/70">
+                  <td className="px-4 py-3 text-fg/70">
                     {formatWhen(org.subscription?.currentPeriodEnd)}
                   </td>
                 </tr>
@@ -207,7 +207,7 @@ export function OrganizationsListPage() {
           >
             Previous
           </Button>
-          <p className="text-sm text-brand-white/60">
+          <p className="text-sm text-fg-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <Button

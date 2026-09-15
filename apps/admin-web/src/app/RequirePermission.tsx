@@ -17,9 +17,9 @@ export function RequirePermission({ permission, children }: RequirePermissionPro
 
   if (!allowed) {
     return (
-      <div className="max-w-lg rounded-lg border border-brand-white/10 bg-brand-black-88 p-6">
-        <h1 className="text-lg font-semibold text-brand-white">Not available for your role</h1>
-        <p className="mt-2 text-sm text-brand-white/60">
+      <div className="max-w-lg rounded-lg border border-border bg-surface p-6">
+        <h1 className="text-lg font-semibold text-fg">Not available for your role</h1>
+        <p className="mt-2 text-sm text-fg-muted">
           You don&apos;t have permission to view this page. Ask an administrator if you think you
           should.
         </p>

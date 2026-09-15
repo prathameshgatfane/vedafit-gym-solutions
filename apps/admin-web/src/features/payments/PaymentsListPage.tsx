@@ -67,8 +67,8 @@ export function PaymentsListPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-brand-white">Payments</h1>
-        <p className="mt-1 text-sm text-brand-green-muted">
+        <h1 className="text-2xl font-semibold text-fg">Payments</h1>
+        <p className="mt-1 text-sm text-accent-muted">
           {pagination
             ? `${pagination.total} ${pagination.total === 1 ? "entry" : "entries"}${
                 hasFilters ? " matching your filters" : ""
@@ -77,14 +77,14 @@ export function PaymentsListPage() {
         </p>
       </div>
 
-      <p className="rounded-md border border-brand-green/25 bg-brand-green/5 px-4 py-3 text-sm text-brand-green-muted">
+      <p className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm text-accent-muted">
         This is a ledger, not a list of edits. Refunds appear as their own negative entries beside
         the payments they reverse — nothing here is ever changed or removed after the fact.
       </p>
 
       <div
         data-testid="payments-filter-bar"
-        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-brand-white/10 bg-brand-black-88 p-4 md:flex md:flex-wrap"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface p-4 md:flex md:flex-wrap"
       >
         <div className="col-span-2 min-w-0 md:min-w-56 md:flex-1">
           <TextField
@@ -136,14 +136,14 @@ export function PaymentsListPage() {
       </div>
 
       {isError ? (
-        <p role="alert" className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
           {apiErrorMessage(error, "Could not load payments.")}
         </p>
       ) : null}
 
       <DataTable>
         <table data-testid="payments-table" className="w-full text-left text-sm">
-          <thead className="bg-brand-black-88 text-xs uppercase tracking-wide text-brand-white/50">
+          <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Date</th>
               <th scope="col" className="px-4 py-3 font-medium">Member</th>
@@ -154,19 +154,19 @@ export function PaymentsListPage() {
             </tr>
           </thead>
           <tbody
-            className={`divide-y divide-brand-white/5 transition-opacity ${
+            className={`divide-y divide-fg/5 transition-opacity ${
               isFetching && !isPending ? "opacity-60" : ""
             }`}
           >
             {isPending ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   Loading payments…
                 </td>
               </tr>
             ) : payments.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-white/50">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   {hasFilters ? "No payments match those filters." : "No payments yet."}
                 </td>
               </tr>
@@ -178,25 +178,25 @@ export function PaymentsListPage() {
                   onClick={() =>
                     payment.invoiceId ? navigate(`/invoices/${payment.invoiceId}`) : undefined
                   }
-                  className="cursor-pointer bg-brand-black hover:bg-brand-white/5"
+                  className="cursor-pointer bg-bg hover:bg-fg/5"
                 >
-                  <td className="px-4 py-3 text-brand-white/70">
+                  <td className="px-4 py-3 text-fg/70">
                     {new Date(payment.paidAt).toLocaleDateString("en-IN")}
                   </td>
-                  <td className="px-4 py-3 text-brand-white">
+                  <td className="px-4 py-3 text-fg">
                     {payment.member.firstName} {payment.member.lastName}
                   </td>
-                  <td className="px-4 py-3 text-brand-white/50">
+                  <td className="px-4 py-3 text-fg-muted">
                     {payment.invoice?.invoiceNumber ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-brand-white/50">{payment.method}</td>
+                  <td className="px-4 py-3 text-fg-muted">{payment.method}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={payment.status} />
                   </td>
                   <td
                     data-testid="payment-amount"
                     className={`px-4 py-3 text-right ${
-                      payment.isRefund ? "text-brand-white/50" : "text-brand-white"
+                      payment.isRefund ? "text-fg-muted" : "text-fg"
                     }`}
                   >
                     {formatSignedPrice(payment.amount)}
@@ -209,14 +209,14 @@ export function PaymentsListPage() {
       </DataTable>
 
       {payments.length > 0 ? (
-        <p data-testid="net-total" className="text-sm text-brand-white/50">
+        <p data-testid="net-total" className="text-sm text-fg-muted">
           Net on this page: {formatPrice(netOnPage.toFixed(2))}
         </p>
       ) : null}
 
       {pagination && pagination.totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p data-testid="pagination-summary" className="text-sm text-brand-white/50">
+          <p data-testid="pagination-summary" className="text-sm text-fg-muted">
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">
