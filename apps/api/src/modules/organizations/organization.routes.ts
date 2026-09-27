@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler";
 import { authenticate } from "../../middleware/auth.middleware";
+import { rejectSuspendedOrganizationWrites } from "../../middleware/organization-status.middleware";
 import { requirePermission } from "../../middleware/permission.middleware";
 import { tenantScope } from "../../middleware/tenant.middleware";
 import { validate } from "../../middleware/validation.middleware";
@@ -25,6 +26,7 @@ export const organizationRouter = Router();
 
 // Nothing under /organizations is reachable without a valid access token.
 organizationRouter.use(authenticate);
+organizationRouter.use(rejectSuspendedOrganizationWrites);
 
 /**
  * One guard covering every org-scoped path below, including the nested routers, because this
