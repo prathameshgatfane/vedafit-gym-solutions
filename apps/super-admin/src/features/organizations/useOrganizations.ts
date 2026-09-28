@@ -3,6 +3,7 @@ import { listSaasPlans } from "../plans/plans.api";
 import {
   createOrganization,
   getOrganization,
+  getOrganizationUsage,
   listOrganizations,
   updateOrganizationStatus,
   updateOrganizationSubscription,
@@ -17,6 +18,7 @@ export const organizationKeys = {
   all: ["platform", "organizations"] as const,
   list: (query: OrganizationListQuery) => [...organizationKeys.all, "list", query] as const,
   detail: (id: string) => [...organizationKeys.all, "detail", id] as const,
+  usage: (id: string) => [...organizationKeys.all, "usage", id] as const,
 };
 
 export function useOrganizationList(query: OrganizationListQuery) {
@@ -34,6 +36,14 @@ export function useOrganization(organizationId: string | undefined) {
   });
 }
 
+export function useOrganizationUsage(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: organizationKeys.usage(organizationId ?? ""),
+    queryFn: () => getOrganizationUsage(organizationId!),
+    enabled: Boolean(organizationId),
+  });
+}
+
 export function useCreateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -41,6 +51,7 @@ export function useCreateOrganization() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: organizationKeys.all });
       await queryClient.invalidateQueries({ queryKey: ["platform", "dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["platform", "plans"] });
     },
   });
 }

@@ -5,7 +5,12 @@ import { useSessionStore } from "../../stores/session.store";
 import { Button } from "../ui/Button";
 import { useTheme } from "./useTheme";
 
-export function Topbar() {
+interface TopbarProps {
+  mobileOpen: boolean;
+  onToggleMobile: () => void;
+}
+
+export function Topbar({ mobileOpen, onToggleMobile }: TopbarProps) {
   const navigate = useNavigate();
   const user = useSessionStore((s) => s.user);
   const clear = useSessionStore((s) => s.clear);
@@ -28,19 +33,44 @@ export function Topbar() {
   return (
     <header
       data-testid="app-topbar"
-      className="flex h-16 shrink-0 items-center justify-end border-b border-border bg-bg px-6"
+      className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border bg-bg px-4 md:gap-3 md:px-6"
     >
-      <div className="flex items-center gap-4">
-        <div className="text-right">
-          <p className="text-sm font-medium text-fg">{user?.name}</p>
-          <p className="text-xs text-accent-muted">Platform operator</p>
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          data-testid="sidebar-open"
+          className="inline-flex shrink-0 rounded-md p-2 text-fg-muted transition-colors hover:bg-accent/15 hover:text-accent-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+          aria-expanded={mobileOpen}
+          aria-controls="app-sidebar"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          onClick={onToggleMobile}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            aria-hidden="true"
+          >
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2 md:gap-4">
+        <div className="min-w-0 text-right">
+          <p data-testid="topbar-user-name" className="truncate text-sm font-medium text-fg">
+            {user?.name}
+          </p>
+          <p className="hidden text-xs text-accent-muted sm:block">Platform operator</p>
         </div>
         <button
           type="button"
           data-testid="theme-toggle"
           aria-pressed={theme === "light"}
           aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
-          className="inline-flex shrink-0 rounded-md p-2 text-fg/80 hover:bg-fg/5 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-flex shrink-0 rounded-md p-2 text-fg-muted transition-colors hover:bg-accent/15 hover:text-accent-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={toggleTheme}
         >
           {theme === "light" ? (
@@ -57,6 +87,7 @@ export function Topbar() {
         <Button
           variant="secondary"
           data-testid="sign-out"
+          className="shrink-0"
           onClick={() => void handleLogout()}
           disabled={loggingOut}
         >

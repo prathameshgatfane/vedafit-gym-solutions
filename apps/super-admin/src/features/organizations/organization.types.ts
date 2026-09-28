@@ -62,6 +62,8 @@ export interface CreatedOrganization {
   };
   branch: { id: string; name: string };
   owner: { id: string; name: string; email: string };
+  subscription?: { id: string; planCode: string; status: string };
+  credentials?: { email: string; temporaryPassword: string };
 }
 
 export interface OrganizationListQuery {
@@ -76,5 +78,54 @@ export interface OrganizationListQuery {
 export interface SubscriptionPatchInput {
   planId?: string;
   status?: SubscriptionStatus;
+  billingInterval?: "MONTHLY" | "YEARLY";
   currentPeriodEnd?: string;
+}
+
+export interface CountUsage {
+  used: number;
+  limit: number | null;
+  unlimited: boolean;
+  remaining: number | null;
+  overLimit: boolean;
+}
+
+export interface UnavailableUsage {
+  available: false;
+  reason: string;
+}
+
+export type UsageMetric = CountUsage | UnavailableUsage;
+
+export interface FeatureFlag {
+  enabled: boolean;
+}
+
+export interface OrganizationUsage {
+  organization: { id: string; name: string; slug: string };
+  subscription: {
+    id: string;
+    status: string;
+    billingInterval: string;
+    plan: { id: string; code: string; name: string };
+  } | null;
+  usage: {
+    members: UsageMetric;
+    branches: UsageMetric;
+    staff: UsageMetric;
+    trainers: UsageMetric;
+    leads: UsageMetric;
+    storage: UsageMetric;
+    monthlySms: UsageMetric;
+    whatsapp: UsageMetric;
+    onlinePayments: UsageMetric;
+  };
+  features: {
+    leads: FeatureFlag;
+    trainers: FeatureFlag;
+    reports: FeatureFlag;
+    notifications: FeatureFlag;
+    whatsapp: FeatureFlag;
+    onlinePayments: FeatureFlag;
+  };
 }

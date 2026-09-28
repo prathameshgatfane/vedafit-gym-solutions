@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { Button } from "./Button";
 
 interface ConfirmDialogProps {
   title: string;
-  message: string;
+  message: ReactNode;
   confirmLabel: string;
   danger?: boolean;
   pending?: boolean;
@@ -27,11 +28,13 @@ export function ConfirmDialog({
       data-testid="confirm-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
     >
-      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-6">
         <h2 id="confirm-title" className="text-lg font-semibold text-fg">
           {title}
         </h2>
-        <p className="mt-2 text-sm text-fg/70">{message}</p>
+        <div className="mt-2 max-h-[50vh] overflow-y-auto text-sm text-fg/70">
+          {typeof message === "string" ? <p>{message}</p> : message}
+        </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={onCancel} disabled={pending}>
             Cancel

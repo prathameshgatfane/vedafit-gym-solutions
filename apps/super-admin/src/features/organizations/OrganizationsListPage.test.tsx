@@ -88,6 +88,10 @@ describe("OrganizationsListPage rendering", () => {
     expect(screen.getByText("Beta Gym")).toBeInTheDocument();
     expect(screen.getByText("2 organizations")).toBeInTheDocument();
     expect(screen.getByText("growth")).toBeInTheDocument();
+    expect(screen.getByText("trial")).toBeInTheDocument();
+    expect(screen.getAllByText("ACTIVE").length).toBeGreaterThan(0);
+    expect(screen.getByText("TRIAL")).toBeInTheDocument();
+    expect(mock.history.get.every((call) => !call.url?.includes("/usage"))).toBe(true);
   });
 
   it("shows an empty state when there are no organizations", async () => {

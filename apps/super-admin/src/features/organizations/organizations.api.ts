@@ -1,10 +1,12 @@
 import { apiClient, type ApiPaginated, type ApiSuccess } from "../../lib/api-client";
+import { toIsoDatetime } from "../../lib/format";
 import type {
   CreatedOrganization,
   OrganizationDetail,
   OrganizationListItem,
   OrganizationListQuery,
   OrganizationStatus,
+  OrganizationUsage,
   SubscriptionPatchInput,
 } from "./organization.types";
 import type { CreateOrganizationFormValues } from "./organization.schema";
@@ -33,9 +35,18 @@ export async function getOrganization(organizationId: string): Promise<Organizat
   return data.data;
 }
 
+export async function getOrganizationUsage(organizationId: string): Promise<OrganizationUsage> {
+  const { data } = await apiClient.get<ApiSuccess<OrganizationUsage>>(
+    `/platform/organizations/${organizationId}/usage`,
+  );
+  return data.data;
+}
+
 export async function createOrganization(
   values: CreateOrganizationFormValues,
 ): Promise<CreatedOrganization> {
+  const currentPeriodEnd = toIsoDatetime(values.currentPeriodEnd);
+  const generatePassword = values.credentialMode === "generate";
   const body = {
     name: values.name,
     slug: values.slug,
@@ -43,10 +54,15 @@ export async function createOrganization(
     ...(values.phone ? { phone: values.phone } : {}),
     ...(values.timezone ? { timezone: values.timezone } : {}),
     ...(values.branchName ? { branchName: values.branchName } : {}),
+    planId: values.planId,
+    subscriptionStatus: values.subscriptionStatus,
+    billingInterval: values.billingInterval,
+    generatePassword,
+    ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
     owner: {
       name: values.ownerName,
       email: values.ownerEmail,
-      password: values.ownerPassword,
+      ...(generatePassword ? {} : { password: values.ownerPassword }),
     },
   };
   const { data } = await apiClient.post<ApiSuccess<CreatedOrganization>>(

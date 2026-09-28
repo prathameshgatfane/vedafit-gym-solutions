@@ -5,6 +5,7 @@ import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { OrganizationDetailPage } from "../features/organizations/OrganizationDetailPage";
 import { OrganizationFormPage } from "../features/organizations/OrganizationFormPage";
 import { OrganizationsListPage } from "../features/organizations/OrganizationsListPage";
+import { PlanFormPage } from "../features/plans/PlanFormPage";
 import { PlansListPage } from "../features/plans/PlansListPage";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -30,6 +31,8 @@ export function AppRoutes() {
         <Route path="organizations/new" element={<OrganizationFormPage />} />
         <Route path="organizations/:organizationId" element={<OrganizationDetailPage />} />
         <Route path="plans" element={<PlansListPage />} />
+        <Route path="plans/new" element={<PlanFormPage />} />
+        <Route path="plans/:planId" element={<PlanFormPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
+import { DataTable } from "../../components/ui/DataTable";
 import { Select } from "../../components/ui/Select";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { TextField } from "../../components/ui/TextField";
@@ -81,7 +82,7 @@ export function OrganizationsListPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid min-w-0 gap-3 md:grid-cols-4">
         <TextField
           label="Search"
           value={searchDraft}
@@ -150,8 +151,8 @@ export function OrganizationsListPage() {
       ) : null}
 
       {organizations.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table data-testid="organizations-table" className="min-w-full text-left text-sm">
+        <DataTable>
+          <table data-testid="organizations-table" className="text-left text-sm">
             <thead className="bg-surface text-xs uppercase tracking-wide text-fg-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Organization</th>
@@ -162,7 +163,7 @@ export function OrganizationsListPage() {
             </thead>
             <tbody>
               {organizations.map((org) => (
-                <tr key={org.id} className="border-t border-border">
+                <tr key={org.id} className="border-t border-border bg-bg hover:bg-accent/10">
                   <td className="px-4 py-3">
                     <Link
                       to={`/organizations/${org.id}`}
@@ -194,7 +195,7 @@ export function OrganizationsListPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </DataTable>
       ) : null}
 
       {pagination && pagination.totalPages > 1 ? (
