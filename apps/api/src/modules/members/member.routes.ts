@@ -7,6 +7,7 @@ import {
   createMemberSchema,
   listMembersQuerySchema,
   memberParamsSchema,
+  portalPasswordSchema,
   updateMemberSchema,
 } from "./member.schema";
 
@@ -58,4 +59,17 @@ memberRouter.post(
   requirePermission("members.archive"),
   validate(memberParamsSchema, "params"),
   asyncHandler(memberController.archive),
+);
+
+/**
+ * Staff enable/reset of the member portal login. Same named-sub-resource pattern as archive.
+ * Gated on `members.update` (RECEPTIONIST and above per the 4.2 matrix). The plaintext temp
+ * password is returned on this POST only.
+ */
+memberRouter.post(
+  "/:memberId/portal-password",
+  requirePermission("members.update"),
+  validate(memberParamsSchema, "params"),
+  validate(portalPasswordSchema, "body"),
+  asyncHandler(memberController.setPortalPassword),
 );

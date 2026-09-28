@@ -42,13 +42,27 @@ export const forgotPasswordSchema = z.object({
 });
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 
+/** Shared by staff forgot-password reset and the member portal temp-password action. */
+export const strongPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[a-z]/, "Password must contain a lowercase letter")
+  .regex(/[A-Z]/, "Password must contain an uppercase letter")
+  .regex(/[0-9]/, "Password must contain a number");
+
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, "Reset token is required"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[a-z]/, "Password must contain a lowercase letter")
-    .regex(/[A-Z]/, "Password must contain an uppercase letter")
-    .regex(/[0-9]/, "Password must contain a number"),
+  password: strongPasswordSchema,
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const memberChangePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: strongPasswordSchema,
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: "New password must be different from the current password",
+    path: ["newPassword"],
+  });
+export type MemberChangePasswordInput = z.infer<typeof memberChangePasswordSchema>;

@@ -1,7 +1,12 @@
 import type { Request, Response } from "express";
 import { getAuth } from "../../middleware/auth.middleware";
 import { memberService, type MemberScope } from "./member.service";
-import type { CreateMemberInput, ListMembersQuery, UpdateMemberInput } from "./member.schema";
+import type {
+  CreateMemberInput,
+  ListMembersQuery,
+  PortalPasswordInput,
+  UpdateMemberInput,
+} from "./member.schema";
 
 type OrgParams = { organizationId: string };
 type MemberParams = { organizationId: string; memberId: string };
@@ -53,5 +58,14 @@ export const memberController = {
   async archive(req: Request<MemberParams>, res: Response) {
     const member = await memberService.archive(scopeFrom(req), req.params.memberId);
     res.status(200).json({ success: true, data: member, message: "Member archived" });
+  },
+
+  async setPortalPassword(req: Request<MemberParams>, res: Response) {
+    const result = await memberService.setPortalPassword(
+      scopeFrom(req),
+      req.params.memberId,
+      req.body as PortalPasswordInput,
+    );
+    res.status(200).json({ success: true, data: result, message: "Member portal password set" });
   },
 };

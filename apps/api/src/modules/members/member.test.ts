@@ -68,7 +68,10 @@ describe("members module — create", () => {
       status: "ACTIVE",
       organizationId: tenant.organization.id,
       branchId: tenant.branch.id,
+      portalEnabled: false,
     });
+    expect(res.body.data).not.toHaveProperty("passwordHash");
+    expect(res.body.data).not.toHaveProperty("temporaryPassword");
     expect(res.body.data.id).toMatch(/^[0-9a-z]{26}$/);
 
     // Stored, not just echoed.
@@ -641,5 +644,176 @@ describe("members module — tenant and branch scoping", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("MEMBER_NOT_FOUND");
+  });
+});
+
+describe("members module — portal password (1.23.2)", () => {
+  const passwordStrength = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/;
+
+  it("refuses member login until staff enables the portal", async () => {
+    const member = await createMember(owner, { firstName: "Locked" });
+
+    const login = await request(app).post("/api/v1/auth/member/login").send({
+      phone: member.phone,
+      password: "ChangeMe123!",
+      organizationSlug: tenant.organization.slug,
+    });
+
+    expect(login.status).toBe(401);
+    expect(login.body.error.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("enables the portal with a generated password, then login works", async () => {
+    const member = await createMember(owner, { firstName: "Portal" });
+
+    const enabled = await request(app)
+      .post(membersUrl(owner, `/${member.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({});
+
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.data.portalEnabled).toBe(true);
+    expect(enabled.body.data.phone).toBe(member.phone);
+    expect(enabled.body.data.organizationSlug).toBe(tenant.organization.slug);
+    expect(enabled.body.data.temporaryPassword).toMatch(passwordStrength);
+    expect(enabled.body.data.temporaryPassword).toHaveLength(10);
+    expect(enabled.body.data).not.toHaveProperty("passwordHash");
+
+    const row = await prisma.member.findUnique({ where: { id: member.id } });
+    expect(row?.passwordHash).toBeTruthy();
+    expect(row?.passwordHash).not.toBe(enabled.body.data.temporaryPassword);
+
+    const login = await request(app).post("/api/v1/auth/member/login").send({
+      phone: member.phone,
+      password: enabled.body.data.temporaryPassword,
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(login.status).toBe(200);
+    expect(login.body.data.member.id).toBe(member.id);
+    expect(login.body.data.member).not.toHaveProperty("passwordHash");
+  });
+
+  it("never puts passwordHash or temporaryPassword on GET or list", async () => {
+    const member = await createMember(owner, { firstName: "Visible" });
+    await request(app)
+      .post(membersUrl(owner, `/${member.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({ password: "StaffSet9x" });
+
+    const fetched = await request(app)
+      .get(membersUrl(owner, `/${member.id}`))
+      .set(...bearer(owner));
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.data.portalEnabled).toBe(true);
+    expect(fetched.body.data).not.toHaveProperty("passwordHash");
+    expect(fetched.body.data).not.toHaveProperty("temporaryPassword");
+    expect(JSON.stringify(fetched.body)).not.toMatch(/passwordHash|temporaryPassword|\$2[aby]\$/);
+
+    const listed = await request(app)
+      .get(`${membersUrl(owner)}?search=${encodeURIComponent(member.phone)}`)
+      .set(...bearer(owner));
+    expect(listed.status).toBe(200);
+    const item = listed.body.data.find((row: { id: string }) => row.id === member.id);
+    expect(item).toMatchObject({ id: member.id, portalEnabled: true });
+    expect(item).not.toHaveProperty("passwordHash");
+    expect(item).not.toHaveProperty("temporaryPassword");
+    expect(JSON.stringify(listed.body)).not.toMatch(/passwordHash|temporaryPassword|\$2[aby]\$/);
+  });
+
+  it("404s when the member belongs to another organization", async () => {
+    const otherTenant = await createTestTenant("PortalOther");
+    const otherOwner = await createActor(otherTenant, "OWNER");
+    const theirs = await createMember(otherOwner, { branchId: otherTenant.branch.id });
+
+    const res = await request(app)
+      .post(membersUrl(owner, `/${theirs.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("MEMBER_NOT_FOUND");
+  });
+
+  it("blocks a TRAINER (no members.update) with 403", async () => {
+    const trainer = await createActor(tenant, "TRAINER");
+    const member = await createMember(owner);
+
+    const res = await request(app)
+      .post(membersUrl(trainer, `/${member.id}/portal-password`))
+      .set(...bearer(trainer))
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("PERMISSION_DENIED");
+
+    const row = await prisma.member.findUnique({ where: { id: member.id } });
+    expect(row?.passwordHash).toBeNull();
+  });
+
+  it("lets a RECEPTIONIST enable the portal", async () => {
+    const member = await createMember(receptionist, { firstName: "Desk" });
+
+    const res = await request(app)
+      .post(membersUrl(receptionist, `/${member.id}/portal-password`))
+      .set(...bearer(receptionist))
+      .send({ password: "FrontDesk1" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.temporaryPassword).toBe("FrontDesk1");
+    expect(res.body.data.portalEnabled).toBe(true);
+  });
+
+  it("rejects a password that fails the shared strength rules", async () => {
+    const member = await createMember(owner);
+
+    const res = await request(app)
+      .post(membersUrl(owner, `/${member.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({ password: "short" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("revokes live member refresh tokens on reset", async () => {
+    const member = await createMember(owner, { firstName: "Reset" });
+
+    const first = await request(app)
+      .post(membersUrl(owner, `/${member.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({ password: "FirstPass1" });
+    expect(first.status).toBe(200);
+
+    const session = await request(app).post("/api/v1/auth/member/login").send({
+      phone: member.phone,
+      password: "FirstPass1",
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(session.status).toBe(200);
+    const oldRefresh = session.body.data.refreshToken as string;
+
+    const reset = await request(app)
+      .post(membersUrl(owner, `/${member.id}/portal-password`))
+      .set(...bearer(owner))
+      .send({ password: "SecondPass2" });
+    expect(reset.status).toBe(200);
+    expect(reset.body.data.temporaryPassword).toBe("SecondPass2");
+
+    const reused = await request(app)
+      .post("/api/v1/auth/member/refresh")
+      .send({ refreshToken: oldRefresh });
+    expect(reused.status).toBe(401);
+
+    const stillLive = await prisma.memberRefreshToken.findMany({
+      where: { memberId: member.id, revokedAt: null },
+    });
+    expect(stillLive).toHaveLength(0);
+
+    const relogin = await request(app).post("/api/v1/auth/member/login").send({
+      phone: member.phone,
+      password: "SecondPass2",
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(relogin.status).toBe(200);
   });
 });

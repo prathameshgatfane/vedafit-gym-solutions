@@ -2,6 +2,8 @@ import { Prisma, type Member } from "@prisma/client";
 import { prisma, withGeneratedId, type TransactionClient } from "../../lib/prisma";
 import { AppError } from "../../lib/app-error";
 import { ErrorCode } from "../../lib/error-codes";
+import { logger } from "../../lib/logger";
+import { generateTemporaryPassword, hashPassword } from "../../lib/password";
 import { resolveOwnRoster, rosterAllows } from "../../lib/own-roster";
 import { SAAS_ENTITLEMENT_KEY } from "../saas/saas-catalog";
 import { assertEntitlement } from "../saas/saas-entitlements.service";
@@ -9,6 +11,7 @@ import { buildPaginationMeta, paginationSkipTake } from "../../utils/pagination"
 import type {
   CreateMemberInput,
   ListMembersQuery,
+  PortalPasswordInput,
   UpdateMemberInput,
 } from "./member.schema";
 
@@ -95,13 +98,23 @@ function toDateOfBirth(value: string): Date {
 export interface MemberResponse extends Omit<Member, "dateOfBirth" | "deletedAt" | "passwordHash"> {
   /** Serialized back as `YYYY-MM-DD` for the same reason it's parsed that way. */
   dateOfBirth: string | null;
+  /** True once staff has set a portal password. The hash itself is never returned. */
+  portalEnabled: boolean;
+}
+
+export interface PortalPasswordResponse {
+  portalEnabled: true;
+  temporaryPassword: string;
+  phone: string;
+  organizationSlug: string;
 }
 
 function toResponse(member: Member): MemberResponse {
-  const { deletedAt: _deletedAt, dateOfBirth, passwordHash: _passwordHash, ...rest } = member;
+  const { deletedAt: _deletedAt, dateOfBirth, passwordHash, ...rest } = member;
   return {
     ...rest,
     dateOfBirth: dateOfBirth ? dateOfBirth.toISOString().slice(0, 10) : null,
+    portalEnabled: passwordHash != null && passwordHash.length > 0,
   };
 }
 
@@ -289,6 +302,62 @@ export const memberService = {
     });
 
     return toResponse(member);
+  },
+
+  /**
+   * Enable or reset the member portal login. The plaintext temporary password is returned once
+   * here and nowhere else — GET/list never include it or `passwordHash`. Live refresh tokens are
+   * revoked so a reset actually ends the previous session.
+   */
+  async setPortalPassword(
+    scope: MemberScope,
+    memberId: string,
+    input: PortalPasswordInput,
+  ): Promise<PortalPasswordResponse> {
+    const roster = await resolveOwnRoster(scope);
+    if (!rosterAllows(roster, memberId)) {
+      throw AppError.notFound(ErrorCode.MEMBER_NOT_FOUND, `Member "${memberId}" not found`);
+    }
+
+    const temporaryPassword = input.password ?? generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+
+    const existing = await prisma.$transaction(async (tx) => {
+      await lockOrganizationForWrite(tx, scope.organizationId);
+
+      const member = await tx.member.findFirst({
+        where: {
+          id: memberId,
+          organizationId: scope.organizationId,
+          branchId: scope.branchId ?? undefined,
+          deletedAt: null,
+        },
+        include: { organization: { select: { slug: true } } },
+      });
+      if (!member) {
+        throw AppError.notFound(ErrorCode.MEMBER_NOT_FOUND, `Member "${memberId}" not found`);
+      }
+
+      await tx.member.update({
+        where: { id: memberId },
+        data: { passwordHash },
+      });
+      await tx.memberRefreshToken.updateMany({
+        where: { memberId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+
+      return member;
+    });
+
+    logger.info({ memberId, organizationId: scope.organizationId }, "Member portal password set");
+
+    return {
+      portalEnabled: true,
+      temporaryPassword,
+      phone: existing.phone,
+      organizationSlug: existing.organization.slug,
+    };
   },
 };
 

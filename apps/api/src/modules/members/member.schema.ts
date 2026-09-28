@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createListQuerySchema } from "../../utils/pagination";
+import { strongPasswordSchema } from "../auth/auth.schema";
 
 export const memberStatusSchema = z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]);
 
@@ -90,3 +91,15 @@ export const listMembersQuerySchema = createListQuerySchema([
   branchId: z.string().trim().min(1).optional(),
 });
 export type ListMembersQuery = z.infer<typeof listMembersQuerySchema>;
+
+/**
+ * Staff enable or reset of the member portal login (1.23.2). Omit `password` to have the API
+ * generate a readable 10-character temporary password. The plaintext is returned once on this
+ * POST and is never stored or logged.
+ */
+export const portalPasswordSchema = z
+  .object({
+    password: strongPasswordSchema.optional(),
+  })
+  .default({});
+export type PortalPasswordInput = z.infer<typeof portalPasswordSchema>;
