@@ -6,6 +6,7 @@ import 'api/env.dart';
 import 'auth/session.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'theme_controller.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,9 +24,12 @@ class MemberApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(memberThemeProvider);
     return MaterialApp.router(
       title: 'Vedafit Member',
-      theme: buildMemberTheme(),
+      theme: buildMemberLightTheme(),
+      darkTheme: buildMemberTheme(),
+      themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
         if (!session.ready) {

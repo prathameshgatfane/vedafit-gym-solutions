@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/session.dart';
 import '../theme.dart';
+import '../widgets/theme_toggle.dart';
+import '../widgets/vf_card.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -50,74 +52,130 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = VfColors.of(context);
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Member portal',
-                  key: const Key('login-heading'),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Brand.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Sign in with the phone number on your membership.',
-                  style: TextStyle(color: Brand.greenMuted),
-                ),
-                const SizedBox(height: 24),
-                // Flutter web's a11y tree mounts its own <input>s. Those do
-                // not write the Dart controllers (and an empty overlay can
-                // wipe a prefilled password). Real typing still hits CanvasKit.
-                ExcludeSemantics(
+      backgroundColor: colors.bg,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ColoredBox(
+              color: colors.bg,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 8, 28),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
-                        key: const Key('phone'),
-                        controller: _phone,
-                        keyboardType: TextInputType.phone,
-                        autofillHints: const [AutofillHints.telephoneNumber],
-                        decoration: const InputDecoration(labelText: 'Phone'),
+                      const Align(
+                        alignment: Alignment.centerRight,
+                        child: ThemeToggleButton(),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('password'),
-                        controller: _password,
-                        obscureText: true,
-                        autofillHints: const [AutofillHints.password],
-                        decoration: const InputDecoration(labelText: 'Password'),
+                      Container(
+                        key: const Key('login-mark'),
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: colors.accent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'V',
+                          style: TextStyle(
+                            color: colors.accentFg,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('organization-slug'),
-                        controller: _slug,
-                        decoration: const InputDecoration(labelText: 'Gym slug'),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Vedafit',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              color: colors.fg,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Text(
+                        'Member portal',
+                        key: const Key('login-heading'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: colors.fg,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sign in with the phone number on your membership.',
+                        style: TextStyle(color: colors.fgMuted),
                       ),
                     ],
                   ),
                 ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  key: const Key('sign-in'),
-                  onPressed: _busy ? null : _submit,
-                  child: Text(_busy ? 'Signing in…' : 'Sign in'),
-                ),
-              ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: VfCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Flutter web's a11y tree mounts its own <input>s. Those do
+                        // not write the Dart controllers (and an empty overlay can
+                        // wipe a prefilled password). Real typing still hits CanvasKit.
+                        ExcludeSemantics(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                key: const Key('phone'),
+                                controller: _phone,
+                                keyboardType: TextInputType.phone,
+                                autofillHints: const [AutofillHints.telephoneNumber],
+                                decoration: const InputDecoration(labelText: 'Phone'),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                key: const Key('password'),
+                                controller: _password,
+                                obscureText: true,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: const InputDecoration(labelText: 'Password'),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                key: const Key('organization-slug'),
+                                controller: _slug,
+                                decoration: const InputDecoration(labelText: 'Gym slug'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(_error!, style: TextStyle(color: colors.danger)),
+                        ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            key: const Key('sign-in'),
+                            onPressed: _busy ? null : _submit,
+                            child: Text(_busy ? 'Signing in…' : 'Sign in'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
