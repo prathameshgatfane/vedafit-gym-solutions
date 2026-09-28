@@ -8,10 +8,11 @@ import {
   createPlatformOperator,
 } from "../../../test/helpers/auth";
 import { uniqueSuffix } from "../../../test/helpers/fixtures";
+import { generateId } from "../../lib/id";
 import { hashPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { ROLE_MATRIX } from "../../lib/rbac-catalog";
-import { syncSaasPlanCatalog } from "../saas/saas-catalog";
+import { SAAS_PLAN_CODE, syncSaasPlanCatalog } from "../saas/saas-catalog";
 import {
   provisionOrganization,
   provisionOrganizationInTransaction,
@@ -62,6 +63,54 @@ describe("provisionOrganization (Phase 15.3)", () => {
       where: { organizationId: result.organization.id },
     });
     expect(templates).toBeGreaterThan(0);
+  });
+
+  it("attaches a selected SaaS plan in the same transaction", async () => {
+    await syncSaasPlanCatalog();
+    const suffix = uniqueSuffix();
+    const periodEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const result = await provisionOrganization({
+      ...provisionInput(suffix),
+      saas: {
+        planCode: SAAS_PLAN_CODE.GROWTH,
+        subscriptionStatus: "ACTIVE",
+        billingInterval: "YEARLY",
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    expect(result.subscription.planCode).toBe(SAAS_PLAN_CODE.GROWTH);
+    expect(result.subscription.status).toBe("ACTIVE");
+    const sub = await prisma.organizationSubscription.findUniqueOrThrow({
+      where: { organizationId: result.organization.id },
+    });
+    expect(sub.billingInterval).toBe("YEARLY");
+    expect(sub.currentPeriodEnd.toISOString()).toBe(periodEnd.toISOString());
+  });
+
+  it("does not leave an organization when the selected plan is archived", async () => {
+    const suffix = uniqueSuffix();
+    const archived = await prisma.saasPlan.create({
+      data: {
+        id: generateId(),
+        code: `x${suffix.toLowerCase()}`.slice(0, 32),
+        name: "Archived provision",
+        priceMonthly: "0.00",
+        priceYearly: "0.00",
+        trialDays: 7,
+        isActive: false,
+      },
+    });
+
+    await expect(
+      provisionOrganization({
+        ...provisionInput(suffix),
+        saas: { planCode: archived.code, subscriptionStatus: "ACTIVE" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 409, code: "SAAS_PLAN_INACTIVE" });
+
+    expect(await prisma.organization.findUnique({ where: { slug: `prov-gym-${suffix}` } })).toBeNull();
+    expect(await prisma.user.count({ where: { email: `owner-${suffix}@example.test` } })).toBe(0);
   });
 
   it("lets the OWNER log in through existing staff POST /auth/login", async () => {

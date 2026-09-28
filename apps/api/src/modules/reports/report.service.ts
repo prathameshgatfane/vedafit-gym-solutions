@@ -18,6 +18,8 @@ import {
   safeTimeZone,
   todayUtc,
 } from "../../utils/dates";
+import { SAAS_ENTITLEMENT_KEY } from "../saas/saas-catalog";
+import { assertEntitlement } from "../saas/saas-entitlements.service";
 import type { DashboardQuery, ProfitLossQuery } from "./report.schema";
 
 export interface ReportScope {
@@ -328,6 +330,7 @@ export const reportService = {
    * entitled to are omitted from the payload entirely (1.18.6).
    */
   async dashboard(scope: ReportScope, query: DashboardQuery): Promise<DashboardResponse> {
+    await assertEntitlement(scope.organizationId, SAAS_ENTITLEMENT_KEY.REPORTS_ENABLED);
     const now = new Date();
     const [keys, branch, timeZone, roster] = await Promise.all([
       permissionKeysFor(scope.roleId),
@@ -400,6 +403,7 @@ export const reportService = {
    * (`branchId` null) appear only when the scope is the whole gym (1.21.1).
    */
   async profitLoss(scope: ReportScope, query: ProfitLossQuery): Promise<ProfitLossResponse> {
+    await assertEntitlement(scope.organizationId, SAAS_ENTITLEMENT_KEY.REPORTS_ENABLED);
     const now = new Date();
     const [branch, timeZone] = await Promise.all([
       resolveBranch(scope, query.branchId),

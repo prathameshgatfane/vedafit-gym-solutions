@@ -35,6 +35,20 @@ function signupBody(suffix: string) {
   };
 }
 
+async function catalogPlanId(code: string) {
+  await syncSaasPlanCatalog();
+  const plan = await prisma.saasPlan.findUniqueOrThrow({ where: { code } });
+  return plan.id;
+}
+
+async function operatorCreateBody(suffix: string, extras: Record<string, unknown> = {}) {
+  return {
+    ...signupBody(suffix),
+    planId: await catalogPlanId(SAAS_PLAN_CODE.TRIAL),
+    ...extras,
+  };
+}
+
 async function loginMember(organizationSlug: string, phone: string) {
   return request(app).post("/api/v1/auth/member/login").send({
     phone,
@@ -64,9 +78,15 @@ describe("platform organization APIs (Phase 15.8)", () => {
     const routes: Array<[string, string]> = [
       ["get", `${BASE}/organizations`],
       ["get", `${BASE}/organizations/${staff.organization.id}`],
+      ["get", `${BASE}/organizations/${staff.organization.id}/usage`],
       ["post", `${BASE}/organizations`],
       ["patch", `${BASE}/organizations/${staff.organization.id}/subscription`],
       ["get", `${BASE}/plans`],
+      ["post", `${BASE}/plans`],
+      ["get", `${BASE}/plans/not-a-plan`],
+      ["patch", `${BASE}/plans/not-a-plan`],
+      ["post", `${BASE}/plans/not-a-plan/activate`],
+      ["post", `${BASE}/plans/not-a-plan/archive`],
       ["get", `${BASE}/dashboard`],
     ];
 
@@ -209,12 +229,18 @@ describe("platform organization APIs (Phase 15.8)", () => {
     const res = await request(app)
       .post(`${BASE}/organizations`)
       .set("Authorization", `Bearer ${operator.accessToken}`)
-      .send(signupBody(suffix));
+      .send(await operatorCreateBody(suffix));
     expect(res.status).toBe(201);
     expect(res.body.data.accessToken).toBeUndefined();
     expect(res.body.data.organization.status).toBe("ACTIVE");
     expect(res.body.data.owner.email).toBe(`plat-owner-${suffix}@example.test`);
     expect(res.body.data.owner.password).toBeUndefined();
+    expect(res.body.data.subscription).toMatchObject({
+      planCode: SAAS_PLAN_CODE.TRIAL,
+      status: "TRIAL",
+    });
+    expect(res.body.data.credentials).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|temporaryPassword|\$2[aby]\$/i);
 
     const login = await request(app).post("/api/v1/auth/login").send({
       email: `plat-owner-${suffix}@example.test`,
@@ -228,6 +254,238 @@ describe("platform organization APIs (Phase 15.8)", () => {
     });
     expect(sub.status).toBe("TRIAL");
     expect(sub.plan.code).toBe(SAAS_PLAN_CODE.TRIAL);
+    expect(sub.billingInterval).toBe("MONTHLY");
+  });
+
+  it("provisions Growth + ACTIVE + YEARLY in the same transaction and exposes it on /auth/me", async () => {
+    const operator = await createPlatformOperator();
+    const suffix = uniqueSuffix();
+    const growthId = await catalogPlanId(SAAS_PLAN_CODE.GROWTH);
+    const periodEnd = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000).toISOString();
+
+    const res = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({
+        ...signupBody(suffix),
+        planId: growthId,
+        subscriptionStatus: "ACTIVE",
+        billingInterval: "YEARLY",
+        currentPeriodEnd: periodEnd,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.accessToken).toBeUndefined();
+    expect(res.body.data.subscription).toMatchObject({
+      planCode: SAAS_PLAN_CODE.GROWTH,
+      status: "ACTIVE",
+    });
+
+    const orgId = res.body.data.organization.id as string;
+    const sub = await prisma.organizationSubscription.findUniqueOrThrow({
+      where: { organizationId: orgId },
+      include: { plan: true },
+    });
+    expect(sub.plan.code).toBe(SAAS_PLAN_CODE.GROWTH);
+    expect(sub.status).toBe("ACTIVE");
+    expect(sub.billingInterval).toBe("YEARLY");
+    expect(sub.currentPeriodEnd.toISOString()).toBe(periodEnd);
+
+    const login = await request(app).post("/api/v1/auth/login").send({
+      email: `plat-owner-${suffix}@example.test`,
+      password: TEST_PASSWORD,
+    });
+    expect(login.status).toBe(200);
+
+    const me = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${login.body.data.accessToken}`);
+    expect(me.status).toBe(200);
+    expect(me.body.data.organization.id).toBe(orgId);
+    expect(me.body.data.saas.plan.code).toBe(SAAS_PLAN_CODE.GROWTH);
+    expect(me.body.data.saas.subscription.status).toBe("ACTIVE");
+    expect(JSON.stringify(me.body)).not.toMatch(/passwordHash|temporaryPassword|\$2[aby]\$/i);
+  });
+
+  it("returns a generated owner password once, then never again", async () => {
+    const operator = await createPlatformOperator();
+    const suffix = uniqueSuffix();
+    const body = await operatorCreateBody(suffix);
+    const { password: _ignored, ...ownerWithoutPassword } = body.owner as {
+      name: string;
+      email: string;
+      password: string;
+    };
+
+    const res = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({
+        ...body,
+        generatePassword: true,
+        owner: { ...ownerWithoutPassword, password: "ClientSent1" },
+      });
+    expect(res.status).toBe(201);
+    const temporaryPassword = res.body.data.credentials.temporaryPassword as string;
+    expect(temporaryPassword).toHaveLength(10);
+    expect(temporaryPassword).toMatch(/[a-z]/);
+    expect(temporaryPassword).toMatch(/[A-Z]/);
+    expect(temporaryPassword).toMatch(/[0-9]/);
+    expect(temporaryPassword).not.toMatch(/[IlO0]/);
+    expect(res.body.data.credentials.email).toBe(`plat-owner-${suffix}@example.test`);
+    expect(res.body.data.accessToken).toBeUndefined();
+    expect(res.body.data.refreshToken).toBeUndefined();
+    expect(res.body.data.owner.password).toBeUndefined();
+    expect(res.body.data.owner.passwordHash).toBeUndefined();
+
+    const owner = await prisma.user.findUniqueOrThrow({
+      where: { id: res.body.data.owner.id },
+    });
+    expect(owner.passwordHash).not.toBe(temporaryPassword);
+    expect(owner.passwordHash).toMatch(/^\$2[aby]\$/);
+
+    const clientLogin = await request(app).post("/api/v1/auth/login").send({
+      email: `plat-owner-${suffix}@example.test`,
+      password: "ClientSent1",
+    });
+    expect(clientLogin.status).toBe(401);
+
+    const login = await request(app).post("/api/v1/auth/login").send({
+      email: `plat-owner-${suffix}@example.test`,
+      password: temporaryPassword,
+    });
+    expect(login.status).toBe(200);
+
+    const me = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${login.body.data.accessToken}`);
+    expect(me.status).toBe(200);
+    expect(me.body.data.organization.id).toBe(res.body.data.organization.id);
+    expect(me.body.data.saas.plan.code).toBe(SAAS_PLAN_CODE.TRIAL);
+    expect(me.body.data.saas.subscription.status).toBe("TRIAL");
+    expect(JSON.stringify(me.body)).not.toMatch(/passwordHash|temporaryPassword|\$2[aby]\$/i);
+
+    const detail = await request(app)
+      .get(`${BASE}/organizations/${res.body.data.organization.id}`)
+      .set("Authorization", `Bearer ${operator.accessToken}`);
+    expect(detail.status).toBe(200);
+    expect(JSON.stringify(detail.body)).not.toMatch(
+      new RegExp(`${temporaryPassword}|passwordHash|temporaryPassword|\\$2[aby]\\$`),
+    );
+
+    const listed = await request(app)
+      .get(`${BASE}/organizations`)
+      .query({ search: suffix })
+      .set("Authorization", `Bearer ${operator.accessToken}`);
+    expect(JSON.stringify(listed.body)).not.toMatch(
+      new RegExp(`${temporaryPassword}|passwordHash|temporaryPassword|\\$2[aby]\\$`),
+    );
+
+    const audit = await prisma.platformAuditLog.findFirstOrThrow({
+      where: {
+        organizationId: res.body.data.organization.id,
+        action: "ORG_PROVISIONED",
+      },
+    });
+    expect(audit.afterJson).toMatchObject({ credentialMode: "generated" });
+    expect(JSON.stringify(audit)).not.toMatch(
+      new RegExp(`${temporaryPassword}|passwordHash|temporaryPassword|\\$2[aby]\\$`),
+    );
+
+    const platformMe = await request(app)
+      .get("/api/v1/auth/platform/me")
+      .set("Authorization", `Bearer ${login.body.data.accessToken}`);
+    expect(platformMe.status).toBe(401);
+  });
+
+  it("does not persist a generated password when provisioning fails", async () => {
+    const operator = await createPlatformOperator();
+    const suffix = uniqueSuffix();
+    const first = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send(await operatorCreateBody(suffix));
+    expect(first.status).toBe(201);
+
+    const retry = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({
+        ...(await operatorCreateBody(suffix)),
+        generatePassword: true,
+        owner: {
+          name: `Other ${suffix}`,
+          email: `other-owner-${suffix}@example.test`,
+        },
+      });
+    expect(retry.status).toBe(409);
+    expect(retry.body.error.code).toBe("DUPLICATE_ORGANIZATION_SLUG");
+    expect(retry.body.data).toBeUndefined();
+    expect(JSON.stringify(retry.body)).not.toMatch(/temporaryPassword/);
+    expect(await prisma.user.count({ where: { email: `other-owner-${suffix}@example.test` } })).toBe(0);
+  });
+
+  it("rejects missing, unknown, inactive, past period end, and client entitlement fields without creating an org", async () => {
+    const operator = await createPlatformOperator();
+    const missing = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send(signupBody(`missing-${uniqueSuffix()}`));
+    expect(missing.status).toBe(400);
+    expect(missing.body.error.code).toBe("VALIDATION_ERROR");
+
+    const unknownSuffix = uniqueSuffix();
+    const unknown = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({ ...signupBody(unknownSuffix), planId: "not-a-real-plan" });
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error.code).toBe("SAAS_PLAN_NOT_FOUND");
+    expect(await prisma.organization.findUnique({ where: { slug: `plat-org-${unknownSuffix}` } })).toBeNull();
+
+    const archived = await prisma.saasPlan.create({
+      data: {
+        id: generateId(),
+        code: `d${uniqueSuffix().toLowerCase()}`.slice(0, 32),
+        name: "Phase D Archived",
+        priceMonthly: "10.00",
+        priceYearly: "100.00",
+        trialDays: 7,
+        isActive: false,
+      },
+    });
+    const inactiveSuffix = uniqueSuffix();
+    const inactive = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({ ...signupBody(inactiveSuffix), planId: archived.id });
+    expect(inactive.status).toBe(409);
+    expect(inactive.body.error.code).toBe("SAAS_PLAN_INACTIVE");
+    expect(await prisma.organization.findUnique({ where: { slug: `plat-org-${inactiveSuffix}` } })).toBeNull();
+
+    const pastSuffix = uniqueSuffix();
+    const past = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({
+        ...(await operatorCreateBody(pastSuffix)),
+        currentPeriodEnd: new Date(Date.now() - 60_000).toISOString(),
+      });
+    expect(past.status).toBe(400);
+    expect(past.body.error.code).toBe("VALIDATION_ERROR");
+    expect(await prisma.organization.findUnique({ where: { slug: `plat-org-${pastSuffix}` } })).toBeNull();
+
+    const extraSuffix = uniqueSuffix();
+    const extra = await request(app)
+      .post(`${BASE}/organizations`)
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({
+        ...(await operatorCreateBody(extraSuffix)),
+        entitlements: [{ key: "members.max", valueType: "UNLIMITED" }],
+        priceMonthly: "1.00",
+      });
+    expect(extra.status).toBe(400);
+    expect(extra.body.error.code).toBe("VALIDATION_ERROR");
+    expect(await prisma.organization.findUnique({ where: { slug: `plat-org-${extraSuffix}` } })).toBeNull();
   });
 
   it("assigns a catalog plan and subscription status without changing Organization.status or another org", async () => {

@@ -1,6 +1,10 @@
 import type { NotificationChannel, NotificationEvent } from "@prisma/client";
 import { env } from "../../config/env";
+import { AppError } from "../../lib/app-error";
+import { ErrorCode } from "../../lib/error-codes";
 import { prisma, withGeneratedId } from "../../lib/prisma";
+import { SAAS_ENTITLEMENT_KEY } from "../../modules/saas/saas-catalog";
+import { assertEntitlement } from "../../modules/saas/saas-entitlements.service";
 import {
   addDays,
   daysBetween,
@@ -36,10 +40,17 @@ export async function runNightlyTick(asOf: Date = new Date()): Promise<ScanResul
   const due = await organizationsDueForNightly(asOf);
   const totals: ScanResult = { queued: 0, skipped: 0, logIds: [] };
   for (const organizationId of due) {
-    const result = await scanOrganization(organizationId, asOf);
-    totals.queued += result.queued;
-    totals.skipped += result.skipped;
-    totals.logIds.push(...result.logIds);
+    try {
+      const result = await scanOrganization(organizationId, asOf);
+      totals.queued += result.queued;
+      totals.skipped += result.skipped;
+      totals.logIds.push(...result.logIds);
+    } catch (error) {
+      if (error instanceof AppError && error.code === ErrorCode.FEATURE_DISABLED) {
+        continue;
+      }
+      throw error;
+    }
   }
   return totals;
 }
@@ -52,6 +63,7 @@ export async function scanOrganization(
   organizationId: string,
   asOf: Date = new Date(),
 ): Promise<ScanResult> {
+  await assertEntitlement(organizationId, SAAS_ENTITLEMENT_KEY.NOTIFICATIONS_ENABLED);
   await ensureDefaultTemplates(organizationId);
 
   const organization = await prisma.organization.findFirstOrThrow({

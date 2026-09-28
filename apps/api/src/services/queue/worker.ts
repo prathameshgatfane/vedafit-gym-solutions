@@ -1,7 +1,11 @@
 import { Worker, type Job } from "bullmq";
 import { env } from "../../config/env";
+import { AppError } from "../../lib/app-error";
+import { ErrorCode } from "../../lib/error-codes";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { SAAS_ENTITLEMENT_KEY } from "../../modules/saas/saas-catalog";
+import { assertEntitlement } from "../../modules/saas/saas-entitlements.service";
 import { createRedis } from "./connection";
 import {
   SCHEDULER_QUEUE_NAME,
@@ -25,6 +29,16 @@ async function processSend(
   const log = await prisma.notificationLog.findUnique({ where: { id: job.data.logId } });
   if (!log) return;
   if (log.status === "SENT") return;
+
+  try {
+    await assertEntitlement(log.organizationId, SAAS_ENTITLEMENT_KEY.NOTIFICATIONS_ENABLED);
+  } catch (error) {
+    if (error instanceof AppError && error.code === ErrorCode.FEATURE_DISABLED) {
+      await markFailed(log.id, "This organization's plan does not include this feature");
+      return;
+    }
+    throw error;
+  }
 
   await sender({
     logId: log.id,

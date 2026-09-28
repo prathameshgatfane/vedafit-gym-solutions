@@ -80,10 +80,12 @@ describe("platform_audit_logs (Phase 15.11)", () => {
       await prisma.platformAuditLog.count({ where: { action: PLATFORM_AUDIT_ACTION.ORG_PROVISIONED } }),
     ).toBe(provisionedBefore);
 
+    await syncSaasPlanCatalog();
+    const trial = await prisma.saasPlan.findUniqueOrThrow({ where: { code: SAAS_PLAN_CODE.TRIAL } });
     const created = await request(app)
       .post(`${BASE}/organizations`)
       .set("Authorization", `Bearer ${operator.accessToken}`)
-      .send(signupBody(`${suffix}ok`));
+      .send({ ...signupBody(`${suffix}ok`), planId: trial.id });
     expect(created.status).toBe(201);
 
     const row = await prisma.platformAuditLog.findFirstOrThrow({
@@ -94,7 +96,8 @@ describe("platform_audit_logs (Phase 15.11)", () => {
     });
     expect(row.platformUserId).toBe(operator.user.id);
     expect(row.platformUserId).not.toBe("spoofed-actor");
-    expect(JSON.stringify(row)).not.toMatch(/password|passwordHash|refreshToken|\$2a\$/i);
+    expect(row.afterJson).toMatchObject({ credentialMode: "manual" });
+    expect(JSON.stringify(row)).not.toMatch(/password|passwordHash|refreshToken|\$2a\$|temporaryPassword/i);
   });
 
   it("records ORG_SUSPENDED and ORG_ACTIVATED from the platform JWT against the URL org", async () => {

@@ -30,6 +30,7 @@ export interface ProvisionOrganizationInput {
     planCode?: string;
     subscriptionStatus?: OrganizationSubscriptionStatus;
     billingInterval?: SaasBillingInterval;
+    currentPeriodEnd?: Date;
   };
 }
 
@@ -138,6 +139,7 @@ export async function provisionOrganizationInTransaction(
     planCode: saas.planCode ?? SAAS_PLAN_CODE.TRIAL,
     status: saas.subscriptionStatus ?? "TRIAL",
     billingInterval: saas.billingInterval,
+    currentPeriodEnd: saas.currentPeriodEnd,
   });
 
   return {

@@ -1,8 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { AppError } from "../../lib/app-error";
 import { ErrorCode } from "../../lib/error-codes";
-import { prisma, withGeneratedId } from "../../lib/prisma";
+import { prisma, withGeneratedId, type TransactionClient } from "../../lib/prisma";
 import { buildPaginationMeta, paginationSkipTake } from "../../utils/pagination";
+import { SAAS_ENTITLEMENT_KEY } from "../saas/saas-catalog";
+import { assertEntitlement } from "../saas/saas-entitlements.service";
 import type {
   AssignMemberInput,
   CreateTrainerProfileInput,
@@ -119,6 +121,10 @@ async function assertUserIsEligible(
   return user;
 }
 
+async function lockOrganization(tx: TransactionClient, organizationId: string) {
+  await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`;
+}
+
 async function findProfileOrThrow(scope: TrainerScope, trainerId: string): Promise<ProfileRow> {
   const profile = await prisma.trainerProfile.findFirst({
     where: { id: trainerId, organizationId: scope.organizationId },
@@ -219,27 +225,31 @@ export const trainerService = {
     scope: TrainerScope,
     input: CreateTrainerProfileInput,
   ): Promise<TrainerProfileResponse> {
-    await assertUserIsEligible(scope.organizationId, input.userId);
+    const created = await prisma.$transaction(async (tx) => {
+      await lockOrganization(tx, scope.organizationId);
+      await assertEntitlement(scope.organizationId, SAAS_ENTITLEMENT_KEY.TRAINERS, { db: tx });
+      await assertUserIsEligible(scope.organizationId, input.userId);
 
-    const existing = await prisma.trainerProfile.findUnique({
-      where: { userId: input.userId },
-      select: { id: true },
-    });
-    if (existing) {
-      throw AppError.conflict(
-        ErrorCode.TRAINER_PROFILE_EXISTS,
-        "That staff member already has a trainer profile",
-      );
-    }
+      const existing = await tx.trainerProfile.findUnique({
+        where: { userId: input.userId },
+        select: { id: true },
+      });
+      if (existing) {
+        throw AppError.conflict(
+          ErrorCode.TRAINER_PROFILE_EXISTS,
+          "That staff member already has a trainer profile",
+        );
+      }
 
-    const created = await prisma.trainerProfile.create({
-      data: withGeneratedId({
-        organizationId: scope.organizationId,
-        userId: input.userId,
-        specialization: input.specialization?.trim() ? input.specialization.trim() : null,
-        commissionPct: commissionDecimal(input.commissionPct) ?? null,
-      }),
-      include: profileInclude,
+      return tx.trainerProfile.create({
+        data: withGeneratedId({
+          organizationId: scope.organizationId,
+          userId: input.userId,
+          specialization: input.specialization?.trim() ? input.specialization.trim() : null,
+          commissionPct: commissionDecimal(input.commissionPct) ?? null,
+        }),
+        include: profileInclude,
+      });
     });
 
     return toResponse(created);

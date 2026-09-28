@@ -1,5 +1,6 @@
 import type { OrganizationSubscriptionStatus, SaasBillingInterval } from "@prisma/client";
-import { env } from "../../config/env";
+import { AppError } from "../../lib/app-error";
+import { ErrorCode } from "../../lib/error-codes";
 import { generateId } from "../../lib/id";
 import { prisma, withGeneratedId, type TransactionClient } from "../../lib/prisma";
 import { addDays } from "../../utils/dates";
@@ -24,6 +25,26 @@ export const SAAS_ENTITLEMENT_KEY = {
   STORAGE_MAX: "storage.max",
   MONTHLY_SMS_MAX: "monthly_sms.max",
 } as const;
+
+export const SAAS_ENTITLEMENT_KEY_VALUES = [
+  SAAS_ENTITLEMENT_KEY.MEMBERS_MAX,
+  SAAS_ENTITLEMENT_KEY.BRANCHES_MAX,
+  SAAS_ENTITLEMENT_KEY.STAFF_MAX,
+  SAAS_ENTITLEMENT_KEY.LEADS,
+  SAAS_ENTITLEMENT_KEY.TRAINERS,
+  SAAS_ENTITLEMENT_KEY.REPORTS_ENABLED,
+  SAAS_ENTITLEMENT_KEY.NOTIFICATIONS_ENABLED,
+  SAAS_ENTITLEMENT_KEY.WHATSAPP_ENABLED,
+  SAAS_ENTITLEMENT_KEY.ONLINE_PAYMENTS_ENABLED,
+  SAAS_ENTITLEMENT_KEY.STORAGE_MAX,
+  SAAS_ENTITLEMENT_KEY.MONTHLY_SMS_MAX,
+] as const;
+
+export type SaasEntitlementKey = (typeof SAAS_ENTITLEMENT_KEY_VALUES)[number];
+
+export function isSaasLimitEntitlementKey(key: string): boolean {
+  return key.endsWith(".max");
+}
 
 type EntitlementSeed =
   | { key: string; valueType: "LIMIT"; intValue: number }
@@ -105,25 +126,16 @@ export const SAAS_PLAN_CATALOG: PlanSeed[] = [
   },
 ];
 
+/**
+ * Insert-if-missing seed. Existing Super Admin edits to name, prices, isActive, or
+ * entitlement values must survive the next provision / seed run.
+ */
 export async function syncSaasPlanCatalog(db: TransactionClient = prisma): Promise<void> {
   for (const plan of SAAS_PLAN_CATALOG) {
     const existing = await db.saasPlan.findUnique({ where: { code: plan.code } });
     const planId = existing?.id ?? generateId();
 
-    if (existing) {
-      await db.saasPlan.update({
-        where: { id: existing.id },
-        data: {
-          name: plan.name,
-          description: plan.description,
-          priceMonthly: plan.priceMonthly,
-          priceYearly: plan.priceYearly,
-          currency: "INR",
-          trialDays: plan.trialDays,
-          isActive: true,
-        },
-      });
-    } else {
+    if (!existing) {
       await db.saasPlan.create({
         data: {
           id: planId,
@@ -140,14 +152,12 @@ export async function syncSaasPlanCatalog(db: TransactionClient = prisma): Promi
     }
 
     for (const entitlement of plan.entitlements) {
-      await db.saasPlanEntitlement.upsert({
+      const row = await db.saasPlanEntitlement.findUnique({
         where: { planId_key: { planId, key: entitlement.key } },
-        update: {
-          valueType: entitlement.valueType,
-          intValue: entitlement.valueType === "LIMIT" ? entitlement.intValue : null,
-          boolValue: entitlement.valueType === "BOOLEAN" ? entitlement.boolValue : null,
-        },
-        create: {
+      });
+      if (row) continue;
+      await db.saasPlanEntitlement.create({
+        data: {
           id: generateId(),
           planId,
           key: entitlement.key,
@@ -165,6 +175,8 @@ export interface AttachSubscriptionInput {
   planCode: string;
   status: OrganizationSubscriptionStatus;
   billingInterval?: SaasBillingInterval;
+  /** When set, must be after period start. Otherwise computed from trial days / interval. */
+  currentPeriodEnd?: Date;
 }
 
 function periodEnd(
@@ -199,18 +211,35 @@ export async function attachOrganizationSubscription(
   if (!plan) {
     throw new Error(`SaaS plan "${input.planCode}" is missing — syncSaasPlanCatalog first`);
   }
+  if (!plan.isActive) {
+    throw new AppError(
+      409,
+      ErrorCode.SAAS_PLAN_INACTIVE,
+      "This SaaS plan is archived and cannot be assigned",
+    );
+  }
 
   const interval = input.billingInterval ?? "MONTHLY";
   const start = new Date();
+  const resolvedPeriodEnd = input.currentPeriodEnd
+    ? input.currentPeriodEnd
+    : periodEnd(start, input.status, interval, plan.trialDays);
+  if (Number.isNaN(resolvedPeriodEnd.getTime()) || resolvedPeriodEnd.getTime() <= start.getTime()) {
+    throw AppError.badRequest(
+      ErrorCode.VALIDATION_ERROR,
+      "Period end must be after the subscription start",
+    );
+  }
+
   const created = await tx.organizationSubscription.create({
     data: withGeneratedId({
       organizationId: input.organizationId,
       planId: plan.id,
       status: input.status,
       billingInterval: interval,
-      priceSnapshot: plan.priceMonthly,
+      priceSnapshot: interval === "YEARLY" ? plan.priceYearly : plan.priceMonthly,
       currentPeriodStart: start,
-      currentPeriodEnd: periodEnd(start, input.status, interval, env.SAAS_TRIAL_DAYS),
+      currentPeriodEnd: resolvedPeriodEnd,
     }),
   });
 

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { AppError } from "../../lib/app-error";
 import { ErrorCode } from "../../lib/error-codes";
 import { logger } from "../../lib/logger";
+import { generateTemporaryPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { addDays, todayUtc } from "../../utils/dates";
 import { buildPaginationMeta, paginationSkipTake } from "../../utils/pagination";
@@ -13,6 +14,7 @@ import {
   writePlatformAuditLog,
 } from "./platform-audit";
 import type {
+  PlatformCreateOrganizationInput,
   PlatformOrganizationListQuery,
   PlatformSignupInput,
   PlatformSubscriptionPatchInput,
@@ -97,13 +99,36 @@ export async function signupOrganization(
 }
 
 /**
- * Super Admin create (15.8 / 10.7). Same provisioning as public signup; the client still cannot
- * choose plan or org status. Does not issue tokens. Audit row is 15.11.
+ * Super Admin create (Phase D). Same `provisionOrganization` transaction as public signup, but
+ * the operator chooses the SaaS plan. Client prices/entitlements are not in the schema.
+ * Does not issue tokens. Audit row is 15.11.
  */
 export async function createOrganizationAsOperator(
-  input: PlatformSignupInput,
+  input: PlatformCreateOrganizationInput,
   platformUserId: string,
-): Promise<PublicSignupResult> {
+): Promise<
+  PublicSignupResult & {
+    subscription: { id: string; planCode: string; status: string };
+    credentials?: { email: string; temporaryPassword: string };
+  }
+> {
+  const plan = await prisma.saasPlan.findUnique({
+    where: { id: input.planId },
+    select: { id: true, code: true, isActive: true },
+  });
+  if (!plan) {
+    throw AppError.notFound(ErrorCode.SAAS_PLAN_NOT_FOUND, "SaaS plan not found");
+  }
+  if (!plan.isActive) {
+    throw AppError.conflict(
+      ErrorCode.SAAS_PLAN_INACTIVE,
+      "This SaaS plan is archived and cannot be assigned",
+    );
+  }
+
+  const generated = input.generatePassword === true;
+  const ownerPassword = generated ? generateTemporaryPassword() : input.owner.password!;
+
   const provisioned = await provisionOrganization(
     {
       organization: {
@@ -113,8 +138,18 @@ export async function createOrganizationAsOperator(
         phone: input.phone,
         timezone: input.timezone,
       },
-      owner: input.owner,
+      owner: {
+        name: input.owner.name,
+        email: input.owner.email,
+        password: ownerPassword,
+      },
       branchName: input.branchName,
+      saas: {
+        planCode: plan.code,
+        subscriptionStatus: input.subscriptionStatus,
+        billingInterval: input.billingInterval,
+        currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : undefined,
+      },
     },
     {
       afterProvision: async (tx, result) => {
@@ -130,6 +165,7 @@ export async function createOrganizationAsOperator(
             status: result.organization.status,
             ownerEmail: result.owner.email,
             subscription: result.subscription,
+            credentialMode: generated ? "generated" : "manual",
           }),
         });
       },
@@ -149,6 +185,15 @@ export async function createOrganizationAsOperator(
       name: provisioned.owner.name,
       email: provisioned.owner.email,
     },
+    subscription: provisioned.subscription,
+    ...(generated
+      ? {
+          credentials: {
+            email: provisioned.owner.email,
+            temporaryPassword: ownerPassword,
+          },
+        }
+      : {}),
   };
 }
 
@@ -309,6 +354,69 @@ export async function updateOrganizationStatus(
   });
 }
 
+const subscriptionPlanSelect = {
+  id: true,
+  code: true,
+  name: true,
+  isActive: true,
+  priceMonthly: true,
+  priceYearly: true,
+} as const;
+
+function catalogPriceForInterval(
+  plan: { priceMonthly: Prisma.Decimal; priceYearly: Prisma.Decimal },
+  interval: "MONTHLY" | "YEARLY",
+) {
+  return interval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
+}
+
+function toSubscriptionResponse(
+  organization: { id: string; status: string },
+  subscription: {
+    id: string;
+    status: string;
+    billingInterval: "MONTHLY" | "YEARLY";
+    priceSnapshot: { toFixed(digits: number): string };
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    plan: { id: string; code: string; name: string };
+  },
+) {
+  return {
+    organization: { id: organization.id, status: organization.status },
+    subscription: {
+      id: subscription.id,
+      status: subscription.status,
+      billingInterval: subscription.billingInterval,
+      priceSnapshot: money(subscription.priceSnapshot),
+      currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+      currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+      plan: {
+        id: subscription.plan.id,
+        code: subscription.plan.code,
+        name: subscription.plan.name,
+      },
+    },
+  };
+}
+
+function subscriptionAuditPayload(row: {
+  plan: { id: string; code: string };
+  status: string;
+  billingInterval: string;
+  priceSnapshot: { toFixed(digits: number): string };
+  currentPeriodEnd: Date;
+}) {
+  return {
+    planId: row.plan.id,
+    planCode: row.plan.code,
+    status: row.status,
+    billingInterval: row.billingInterval,
+    priceSnapshot: money(row.priceSnapshot),
+    currentPeriodEnd: row.currentPeriodEnd.toISOString(),
+  };
+}
+
 export async function updateOrganizationSubscription(
   organizationId: string,
   input: PlatformSubscriptionPatchInput,
@@ -328,7 +436,7 @@ export async function updateOrganizationSubscription(
 
     const existing = await tx.organizationSubscription.findUnique({
       where: { organizationId },
-      include: { plan: { select: { id: true, code: true } } },
+      include: { plan: { select: subscriptionPlanSelect } },
     });
     if (!existing) {
       throw AppError.notFound(
@@ -337,26 +445,66 @@ export async function updateOrganizationSubscription(
       );
     }
 
-    const data: Prisma.OrganizationSubscriptionUpdateInput = {};
-    let nextPlan: { id: string; code: string; name: string } | null = null;
-
+    let nextPlan = existing.plan;
     if (input.planId) {
-      const plan = await tx.saasPlan.findUnique({ where: { id: input.planId } });
+      const plan = await tx.saasPlan.findUnique({
+        where: { id: input.planId },
+        select: subscriptionPlanSelect,
+      });
       if (!plan) {
         throw AppError.notFound(ErrorCode.SAAS_PLAN_NOT_FOUND, "SaaS plan not found");
       }
-      nextPlan = { id: plan.id, code: plan.code, name: plan.name };
-      data.plan = { connect: { id: plan.id } };
-      data.priceSnapshot =
-        existing.billingInterval === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
+      if (!plan.isActive && plan.id !== existing.planId) {
+        throw AppError.conflict(
+          ErrorCode.SAAS_PLAN_INACTIVE,
+          "This SaaS plan is archived and cannot be assigned",
+        );
+      }
+      nextPlan = plan;
     }
 
-    if (input.status) {
-      data.status = input.status;
+    const nextStatus = input.status ?? existing.status;
+    const nextInterval = input.billingInterval ?? existing.billingInterval;
+    const nextPeriodEnd = input.currentPeriodEnd
+      ? new Date(input.currentPeriodEnd)
+      : existing.currentPeriodEnd;
+
+    if (Number.isNaN(nextPeriodEnd.getTime()) || nextPeriodEnd.getTime() <= existing.currentPeriodStart.getTime()) {
+      throw AppError.badRequest(
+        ErrorCode.VALIDATION_ERROR,
+        "Period end must be after the subscription start",
+      );
     }
 
-    if (input.currentPeriodEnd) {
-      data.currentPeriodEnd = new Date(input.currentPeriodEnd);
+    const planChanged = nextPlan.id !== existing.planId;
+    const intervalChanged = nextInterval !== existing.billingInterval;
+    const statusChanged = nextStatus !== existing.status;
+    const periodChanged = nextPeriodEnd.getTime() !== existing.currentPeriodEnd.getTime();
+    const nextSnapshot = planChanged || intervalChanged
+      ? catalogPriceForInterval(nextPlan, nextInterval)
+      : existing.priceSnapshot;
+    const snapshotChanged = money(nextSnapshot) !== money(existing.priceSnapshot);
+    const configChanged = planChanged || intervalChanged || statusChanged || periodChanged;
+
+    if (!configChanged) {
+      return toSubscriptionResponse(orgExists, existing);
+    }
+
+    const data: Prisma.OrganizationSubscriptionUpdateInput = {};
+    if (planChanged) {
+      data.plan = { connect: { id: nextPlan.id } };
+    }
+    if (intervalChanged) {
+      data.billingInterval = nextInterval;
+    }
+    if (statusChanged) {
+      data.status = nextStatus;
+    }
+    if (periodChanged) {
+      data.currentPeriodEnd = nextPeriodEnd;
+    }
+    if (snapshotChanged) {
+      data.priceSnapshot = nextSnapshot;
     }
 
     const updated = await tx.organizationSubscription.update({
@@ -364,10 +512,6 @@ export async function updateOrganizationSubscription(
       data,
       include: { plan: { select: { id: true, code: true, name: true } } },
     });
-
-    const beforePeriodEnd = existing.currentPeriodEnd.toISOString();
-    const afterPeriodEnd = updated.currentPeriodEnd.toISOString();
-    const planChanged = Boolean(nextPlan && nextPlan.id !== existing.plan.id);
 
     if (planChanged) {
       await writePlatformAuditLog(tx, {
@@ -391,60 +535,15 @@ export async function updateOrganizationSubscription(
       entityType: "OrganizationSubscription",
       entityId: updated.id,
       action: PLATFORM_AUDIT_ACTION.SUBSCRIPTION_CHANGED,
-      beforeJson: {
-        planId: existing.plan.id,
-        planCode: existing.plan.code,
-        status: existing.status,
-        currentPeriodEnd: beforePeriodEnd,
-      },
-      afterJson: {
-        planId: updated.plan.id,
-        planCode: updated.plan.code,
-        status: updated.status,
-        currentPeriodEnd: afterPeriodEnd,
-        priceSnapshot: money(updated.priceSnapshot),
-      },
+      beforeJson: subscriptionAuditPayload(existing),
+      afterJson: subscriptionAuditPayload(updated),
     });
 
-    return {
-      organization: { id: orgExists.id, status: orgExists.status },
-      subscription: {
-        id: updated.id,
-        status: updated.status,
-        billingInterval: updated.billingInterval,
-        priceSnapshot: money(updated.priceSnapshot),
-        currentPeriodStart: updated.currentPeriodStart.toISOString(),
-        currentPeriodEnd: afterPeriodEnd,
-        plan: updated.plan,
-      },
-    };
+    return toSubscriptionResponse(orgExists, updated);
   });
 }
 
-export async function listSaasPlans() {
-  const plans = await prisma.saasPlan.findMany({
-    orderBy: { code: "asc" },
-    include: { entitlements: { orderBy: { key: "asc" } } },
-  });
-
-  return plans.map((plan) => ({
-    id: plan.id,
-    code: plan.code,
-    name: plan.name,
-    description: plan.description,
-    priceMonthly: money(plan.priceMonthly),
-    priceYearly: money(plan.priceYearly),
-    currency: plan.currency,
-    trialDays: plan.trialDays,
-    isActive: plan.isActive,
-    entitlements: plan.entitlements.map((row) => ({
-      key: row.key,
-      valueType: row.valueType,
-      intValue: row.intValue,
-      boolValue: row.boolValue,
-    })),
-  }));
-}
+export { listSaasPlans } from "../saas/saas-plan.service";
 
 /**
  * Fleet counts (10.7). `trialsEnding` = TRIAL rows whose period end is on or before 14 days

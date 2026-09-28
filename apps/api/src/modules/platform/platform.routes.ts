@@ -6,10 +6,14 @@ import { organizationIdParamsSchema } from "../organizations/organization.schema
 import { platformController } from "./platform.controller";
 import { signupRateLimiter } from "./platform.rate-limit";
 import {
+  createSaasPlanSchema,
+  platformCreateOrganizationSchema,
   platformOrganizationListQuerySchema,
   platformOrganizationStatusSchema,
   platformSignupSchema,
   platformSubscriptionPatchSchema,
+  saasPlanIdParamsSchema,
+  updateSaasPlanSchema,
 } from "./platform.schema";
 
 export const platformRouter = Router();
@@ -33,7 +37,7 @@ platformRouter.get(
 platformRouter.post(
   "/organizations",
   authenticatePlatform,
-  validate(platformSignupSchema, "body"),
+  validate(platformCreateOrganizationSchema, "body"),
   asyncHandler(platformController.createOrganization),
 );
 
@@ -42,6 +46,13 @@ platformRouter.get(
   authenticatePlatform,
   validate(organizationIdParamsSchema, "params"),
   asyncHandler(platformController.getOrganization),
+);
+
+platformRouter.get(
+  "/organizations/:organizationId/usage",
+  authenticatePlatform,
+  validate(organizationIdParamsSchema, "params"),
+  asyncHandler(platformController.getOrganizationUsage),
 );
 
 // Phase 15.7.
@@ -65,6 +76,42 @@ platformRouter.get(
   "/plans",
   authenticatePlatform,
   asyncHandler(platformController.listPlans),
+);
+
+platformRouter.post(
+  "/plans",
+  authenticatePlatform,
+  validate(createSaasPlanSchema, "body"),
+  asyncHandler(platformController.createPlan),
+);
+
+platformRouter.get(
+  "/plans/:planId",
+  authenticatePlatform,
+  validate(saasPlanIdParamsSchema, "params"),
+  asyncHandler(platformController.getPlan),
+);
+
+platformRouter.patch(
+  "/plans/:planId",
+  authenticatePlatform,
+  validate(saasPlanIdParamsSchema, "params"),
+  validate(updateSaasPlanSchema, "body"),
+  asyncHandler(platformController.patchPlan),
+);
+
+platformRouter.post(
+  "/plans/:planId/activate",
+  authenticatePlatform,
+  validate(saasPlanIdParamsSchema, "params"),
+  asyncHandler(platformController.activatePlan),
+);
+
+platformRouter.post(
+  "/plans/:planId/archive",
+  authenticatePlatform,
+  validate(saasPlanIdParamsSchema, "params"),
+  asyncHandler(platformController.archivePlan),
 );
 
 platformRouter.get(

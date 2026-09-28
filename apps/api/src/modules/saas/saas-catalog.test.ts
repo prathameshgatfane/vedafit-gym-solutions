@@ -16,15 +16,14 @@ import {
 import { getOrganizationSaasSnapshot } from "./saas-entitlements.service";
 
 describe("SaaS catalog (Phase 15.5)", () => {
-  it("upserts the documented plans and entitlements without duplicating on re-run", async () => {
+  it("inserts the documented plans and entitlements without duplicating on re-run", async () => {
     await syncSaasPlanCatalog();
     await syncSaasPlanCatalog();
 
     const plans = await prisma.saasPlan.findMany({ orderBy: { code: "asc" } });
-    expect(plans.map((p) => p.code).sort()).toEqual(
-      [SAAS_PLAN_CODE.GROWTH, SAAS_PLAN_CODE.STARTER, SAAS_PLAN_CODE.TRIAL].sort(),
+    expect(plans.map((p) => p.code)).toEqual(
+      expect.arrayContaining([SAAS_PLAN_CODE.GROWTH, SAAS_PLAN_CODE.STARTER, SAAS_PLAN_CODE.TRIAL]),
     );
-    expect(plans).toHaveLength(3);
 
     for (const seed of SAAS_PLAN_CATALOG) {
       const plan = plans.find((p) => p.code === seed.code);
@@ -43,6 +42,61 @@ describe("SaaS catalog (Phase 15.5)", () => {
       "UNLIMITED",
     );
     expect(growthKeys.find((r) => r.key === SAAS_ENTITLEMENT_KEY.BRANCHES_MAX)?.intValue).toBe(5);
+  });
+
+  it("does not overwrite Super Admin plan edits when provisionOrganization syncs the catalog", async () => {
+    await syncSaasPlanCatalog();
+    const growth = await prisma.saasPlan.findUniqueOrThrow({ where: { code: SAAS_PLAN_CODE.GROWTH } });
+    const memberMax = await prisma.saasPlanEntitlement.findUniqueOrThrow({
+      where: { planId_key: { planId: growth.id, key: SAAS_ENTITLEMENT_KEY.MEMBERS_MAX } },
+    });
+    const before = {
+      name: growth.name,
+      priceMonthly: growth.priceMonthly.toFixed(2),
+      valueType: memberMax.valueType,
+      intValue: memberMax.intValue,
+    };
+
+    try {
+      await prisma.saasPlan.update({
+        where: { id: growth.id },
+        data: { name: "Growth Plus", priceMonthly: "999.00" },
+      });
+      await prisma.saasPlanEntitlement.update({
+        where: { id: memberMax.id },
+        data: { valueType: "LIMIT", intValue: 10, boolValue: null },
+      });
+
+      const suffix = uniqueSuffix();
+      await provisionOrganization({
+        organization: {
+          name: `No Clobber ${suffix}`,
+          slug: `no-clobber-${suffix}`,
+          email: `no-clobber-${suffix}@example.test`,
+        },
+        owner: {
+          name: `Owner ${suffix}`,
+          email: `no-clobber-owner-${suffix}@example.test`,
+          password: TEST_PASSWORD,
+        },
+      });
+
+      const after = await prisma.saasPlan.findUniqueOrThrow({ where: { id: growth.id } });
+      const afterEnt = await prisma.saasPlanEntitlement.findUniqueOrThrow({ where: { id: memberMax.id } });
+      expect(after.name).toBe("Growth Plus");
+      expect(after.priceMonthly.toFixed(2)).toBe("999.00");
+      expect(afterEnt.valueType).toBe("LIMIT");
+      expect(afterEnt.intValue).toBe(10);
+    } finally {
+      await prisma.saasPlan.update({
+        where: { id: growth.id },
+        data: { name: before.name, priceMonthly: before.priceMonthly },
+      });
+      await prisma.saasPlanEntitlement.update({
+        where: { id: memberMax.id },
+        data: { valueType: before.valueType, intValue: before.intValue, boolValue: null },
+      });
+    }
   });
 
   it("attaches a trial subscription on provisionOrganization and does not duplicate it", async () => {

@@ -262,6 +262,77 @@ describe("PATCH /platform/organizations/:organizationId/status (Phase 15.7)", ()
     expect(bRow.status).toBe("ACTIVE");
   });
 
+  it("blocks tenant writes after suspend; GET identity and reads still work until access TTL", async () => {
+    const operator = await createPlatformOperator();
+    const tenant = await createTestTenant("SuspendWrite");
+    const owner = await createActor(tenant, "OWNER");
+    const { phone } = await seedMember(tenant.organization.id, tenant.branch.id);
+    const memberLogin = await loginMember(tenant.organization.slug, phone);
+    expect(memberLogin.status).toBe(200);
+    const memberToken = memberLogin.body.data.accessToken as string;
+
+    await request(app)
+      .patch(STATUS(tenant.organization.id))
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({ status: "SUSPENDED" });
+
+    const createMember = await request(app)
+      .post(`/api/v1/organizations/${tenant.organization.id}/members`)
+      .set(...bearer(owner))
+      .send({
+        firstName: "Blocked",
+        lastName: uniqueSuffix(),
+        phone: uniquePhone(),
+        branchId: tenant.branch.id,
+      });
+    expect(createMember.status).toBe(403);
+    expect(createMember.body.error.code).toBe("ACCOUNT_INACTIVE");
+
+    const patchOrg = await request(app)
+      .patch(`/api/v1/organizations/${tenant.organization.id}`)
+      .set(...bearer(owner))
+      .send({ phone: "+919876543210" });
+    expect(patchOrg.status).toBe(403);
+    expect(patchOrg.body.error.code).toBe("ACCOUNT_INACTIVE");
+
+    const stillMe = await request(app).get("/api/v1/auth/me").set(...bearer(owner));
+    expect(stillMe.status).toBe(200);
+    expect(stillMe.body.data.organization.status).toBe("SUSPENDED");
+
+    const getOrg = await request(app)
+      .get(`/api/v1/organizations/${tenant.organization.id}`)
+      .set(...bearer(owner));
+    expect(getOrg.status).toBe(200);
+
+    const listMembers = await request(app)
+      .get(`/api/v1/organizations/${tenant.organization.id}/members`)
+      .set(...bearer(owner));
+    expect(listMembers.status).toBe(200);
+
+    const changePassword = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "AliceNew9x" });
+    expect(changePassword.status).toBe(403);
+    expect(changePassword.body.error.code).toBe("ACCOUNT_INACTIVE");
+
+    await request(app)
+      .patch(STATUS(tenant.organization.id))
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({ status: "ACTIVE" });
+
+    const afterRestore = await request(app)
+      .post(`/api/v1/organizations/${tenant.organization.id}/members`)
+      .set(...bearer(owner))
+      .send({
+        firstName: "After",
+        lastName: uniqueSuffix(),
+        phone: uniquePhone(),
+        branchId: tenant.branch.id,
+      });
+    expect(afterRestore.status).toBe(201);
+  });
+
   it("returns 404 for an unknown organization and 400 for an invalid status", async () => {
     const operator = await createPlatformOperator();
 

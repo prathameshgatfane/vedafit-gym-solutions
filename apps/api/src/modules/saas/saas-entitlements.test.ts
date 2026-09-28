@@ -117,6 +117,29 @@ function memberPayload(branchId: string, suffix: string) {
 }
 
 describe("assertEntitlement (Phase 15.6)", () => {
+  it("rejects a non-positive or non-integer delta without consulting usage", async () => {
+    await expect(assertEntitlement("unused-org", SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { delta: 0 })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+    await expect(assertEntitlement("unused-org", SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { delta: -1 })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+    await expect(assertEntitlement("unused-org", SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { delta: 1.5 })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+    await expect(assertEntitlement("unused-org", SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { delta: Number.NaN })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+    await expect(assertEntitlement("unused-org", SAAS_ENTITLEMENT_KEY.MEMBERS_MAX, { delta: Number.POSITIVE_INFINITY })).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+    });
+  });
+
   afterAll(async () => {
     await syncSaasPlanCatalog();
     const trial = await prisma.saasPlan.findUnique({ where: { code: SAAS_PLAN_CODE.TRIAL } });

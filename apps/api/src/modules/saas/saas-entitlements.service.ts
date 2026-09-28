@@ -86,6 +86,36 @@ function isLimitKey(key: string): boolean {
   return key.endsWith(".max");
 }
 
+/** Same filters `assertEntitlement` uses — usage APIs must not invent a second definition. */
+export const ORGANIZATION_USAGE_WHERE = {
+  members: (organizationId: string) => ({
+    organizationId,
+    deletedAt: null,
+    status: { not: "ARCHIVED" as const },
+  }),
+  staff: (organizationId: string) => ({
+    organizationId,
+    deletedAt: null,
+  }),
+  branches: (organizationId: string) => ({ organizationId }),
+  trainers: (organizationId: string) => ({ organizationId }),
+  leads: (organizationId: string) => ({ organizationId }),
+};
+
+export async function countOrganizationResourceUsage(
+  organizationId: string,
+  db: TransactionClient = prisma,
+): Promise<{ members: number; staff: number; branches: number; trainers: number; leads: number }> {
+  const [members, staff, branches, trainers, leads] = await Promise.all([
+    db.member.count({ where: ORGANIZATION_USAGE_WHERE.members(organizationId) }),
+    db.user.count({ where: ORGANIZATION_USAGE_WHERE.staff(organizationId) }),
+    db.branch.count({ where: ORGANIZATION_USAGE_WHERE.branches(organizationId) }),
+    db.trainerProfile.count({ where: ORGANIZATION_USAGE_WHERE.trainers(organizationId) }),
+    db.lead.count({ where: ORGANIZATION_USAGE_WHERE.leads(organizationId) }),
+  ]);
+  return { members, staff, branches, trainers, leads };
+}
+
 async function currentUsage(
   db: TransactionClient,
   organizationId: string,
@@ -93,15 +123,11 @@ async function currentUsage(
 ): Promise<number> {
   switch (key) {
     case SAAS_ENTITLEMENT_KEY.MEMBERS_MAX:
-      return db.member.count({
-        where: { organizationId, deletedAt: null, status: { not: "ARCHIVED" } },
-      });
+      return db.member.count({ where: ORGANIZATION_USAGE_WHERE.members(organizationId) });
     case SAAS_ENTITLEMENT_KEY.STAFF_MAX:
-      return db.user.count({
-        where: { organizationId, deletedAt: null },
-      });
+      return db.user.count({ where: ORGANIZATION_USAGE_WHERE.staff(organizationId) });
     case SAAS_ENTITLEMENT_KEY.BRANCHES_MAX:
-      return db.branch.count({ where: { organizationId } });
+      return db.branch.count({ where: ORGANIZATION_USAGE_WHERE.branches(organizationId) });
     default:
       return 0;
   }
@@ -119,6 +145,13 @@ export async function assertEntitlement(
 ): Promise<void> {
   const db = options.db ?? prisma;
   const delta = options.delta ?? 1;
+  if (!Number.isInteger(delta) || delta < 1) {
+    throw new AppError(
+      400,
+      ErrorCode.VALIDATION_ERROR,
+      "Entitlement delta must be a positive integer",
+    );
+  }
   const snapshot = await getOrganizationSaasSnapshot(organizationId, db);
   const entitlement = snapshot?.entitlements.find((row) => row.key === key);
 

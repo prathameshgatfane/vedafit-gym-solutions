@@ -122,6 +122,10 @@ export const ErrorCode = {
   PLAN_LIMIT_REACHED: "PLAN_LIMIT_REACHED",
   /** Platform assign-plan: `planId` is not a row in `saas_plans`. */
   SAAS_PLAN_NOT_FOUND: "SAAS_PLAN_NOT_FOUND",
+  /** Super Admin create: `code` already exists on `saas_plans`. */
+  DUPLICATE_SAAS_PLAN_CODE: "DUPLICATE_SAAS_PLAN_CODE",
+  /** Archived / inactive plan cannot be assigned to an organization. */
+  SAAS_PLAN_INACTIVE: "SAAS_PLAN_INACTIVE",
   /** Org has no `organization_subscriptions` row (unexpected after 15.5 backfill). */
   ORGANIZATION_SUBSCRIPTION_NOT_FOUND: "ORGANIZATION_SUBSCRIPTION_NOT_FOUND",
 } as const;

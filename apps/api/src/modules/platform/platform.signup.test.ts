@@ -181,7 +181,7 @@ describe("POST /api/v1/platform/signup (Phase 15.4)", () => {
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 
-  it("rejects client-chosen role, status, and organizationId", async () => {
+  it("rejects client-chosen plan, role, status, and organizationId", async () => {
     const suffix = uniqueSuffix();
     const res = await request(app)
       .post(SIGNUP)
@@ -191,6 +191,8 @@ describe("POST /api/v1/platform/signup (Phase 15.4)", () => {
           role: "ADMIN",
           status: "SUSPENDED",
           organizationId: "01h00000000000000000000000",
+          planId: "spoofed-plan",
+          subscriptionStatus: "ACTIVE",
         }),
       );
     expect(res.status).toBe(400);
