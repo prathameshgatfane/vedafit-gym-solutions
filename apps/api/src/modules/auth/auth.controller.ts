@@ -9,6 +9,7 @@ import { platformAuthService, type IssuedPlatformSession } from "./platform-auth
 import type {
   ForgotPasswordInput,
   LoginInput,
+  MemberChangePasswordInput,
   MemberLoginInput,
   PlatformLoginInput,
   RefreshInput,
@@ -238,6 +239,23 @@ export const authController = {
   async memberMe(req: Request, res: Response): Promise<void> {
     const data = await memberAuthService.me(getMemberAuth(req));
     res.status(200).json({ success: true, data, message: "Current session" });
+  },
+
+  async memberChangePassword(req: Request, res: Response): Promise<void> {
+    const session = await memberAuthService.changePassword(
+      getMemberAuth(req),
+      req.body as MemberChangePasswordInput,
+    );
+    res.status(200).json({
+      success: true,
+      data: {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        tokenType: "Bearer",
+        expiresIn: session.expiresIn,
+      },
+      message: "Password updated",
+    });
   },
 
   async platformLogin(req: Request, res: Response): Promise<void> {

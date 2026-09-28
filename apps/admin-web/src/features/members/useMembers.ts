@@ -12,11 +12,12 @@ import {
   createMember,
   getMember,
   listMembers,
+  setMemberPortalPassword,
   updateMember,
   type MemberPage,
 } from "./members.api";
 import type { MemberFormValues } from "./member.schema";
-import type { Member, MemberListParams } from "./member.types";
+import type { Member, MemberListParams, PortalPasswordResult } from "./member.types";
 
 /**
  * Query keys are scoped by organization id so switching tenants can never serve another org's
@@ -99,6 +100,28 @@ export function useArchiveMember(): UseMutationResult<Member, unknown, string> {
     mutationFn: (memberId: string) => archiveMember(organizationId, memberId),
     onSuccess: (member) => {
       queryClient.setQueryData(memberKeys.detail(organizationId, member.id), member);
+      void queryClient.invalidateQueries({ queryKey: memberKeys.all(organizationId) });
+    },
+  });
+}
+
+export function useSetMemberPortalPassword(): UseMutationResult<
+  PortalPasswordResult,
+  unknown,
+  { memberId: string; password?: string }
+> {
+  const organizationId = useOrganizationId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ memberId, password }) =>
+      setMemberPortalPassword(organizationId, memberId, password),
+    onSuccess: (_result, { memberId }) => {
+      // Flip the flag on the cached member. Do not write the plaintext password into the cache —
+      // it lives only in the one-time success panel that called this mutation.
+      queryClient.setQueryData<Member>(memberKeys.detail(organizationId, memberId), (current) =>
+        current ? { ...current, portalEnabled: true } : current,
+      );
       void queryClient.invalidateQueries({ queryKey: memberKeys.all(organizationId) });
     },
   });

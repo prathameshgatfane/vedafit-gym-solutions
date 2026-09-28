@@ -29,6 +29,7 @@ const existingMember: Member = {
   email: "aarav@example.test",
   dateOfBirth: "1994-03-17",
   status: "ACTIVE",
+  portalEnabled: false,
   createdAt: "2026-09-01T10:00:00.000Z",
   updatedAt: "2026-09-01T10:00:00.000Z",
 };

@@ -4,11 +4,11 @@ import { ErrorCode } from "../../lib/error-codes";
 import { generateId } from "../../lib/id";
 import { accessTokenTtlSeconds, signMemberAccessToken } from "../../lib/jwt";
 import { logger } from "../../lib/logger";
-import { verifyPassword } from "../../lib/password";
+import { hashPassword, verifyPassword } from "../../lib/password";
 import { prisma, withGeneratedId } from "../../lib/prisma";
 import { generateOpaqueToken, hashToken } from "../../lib/tokens";
 import type { MemberAccessTokenPayload } from "../../lib/jwt";
-import type { MemberLoginInput } from "./auth.schema";
+import type { MemberChangePasswordInput, MemberLoginInput } from "./auth.schema";
 
 const DUMMY_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
@@ -186,5 +186,47 @@ export const memberAuthService = {
       organization: member.organization,
       branch: member.branch,
     };
+  },
+
+  /**
+   * Member-initiated password change. Wrong current password is the same 401 as a failed
+   * login (dummy bcrypt when the hash is missing). On success every live refresh family is
+   * revoked and a new session is issued so this device stays signed in and others do not.
+   */
+  async changePassword(auth: MemberAccessTokenPayload, input: MemberChangePasswordInput) {
+    const member = await prisma.member.findFirst({
+      where: { id: auth.memberId, organizationId: auth.organizationId, deletedAt: null },
+      include: { organization: { select: { status: true } } },
+    });
+
+    if (!member || !member.passwordHash) {
+      await verifyPassword(input.currentPassword, DUMMY_PASSWORD_HASH);
+      throw new AppError(401, ErrorCode.INVALID_CREDENTIALS, "Invalid phone or password");
+    }
+
+    const ok = await verifyPassword(input.currentPassword, member.passwordHash);
+    if (!ok) {
+      throw new AppError(401, ErrorCode.INVALID_CREDENTIALS, "Invalid phone or password");
+    }
+
+    if (member.status !== "ACTIVE" || member.organization.status !== "ACTIVE") {
+      throw new AppError(403, ErrorCode.ACCOUNT_INACTIVE, "This account is not active");
+    }
+
+    const passwordHash = await hashPassword(input.newPassword);
+    await prisma.$transaction([
+      prisma.member.update({
+        where: { id: member.id },
+        data: { passwordHash },
+      }),
+      prisma.memberRefreshToken.updateMany({
+        where: { memberId: member.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    const session = await issueMemberSession(member, generateId());
+    logger.info({ memberId: member.id, organizationId: member.organizationId }, "Member password changed");
+    return session;
   },
 };

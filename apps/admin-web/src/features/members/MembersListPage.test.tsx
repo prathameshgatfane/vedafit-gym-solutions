@@ -29,6 +29,7 @@ function member(overrides: Partial<Member> = {}): Member {
     email: "aarav@example.test",
     dateOfBirth: "1994-03-17",
     status: "ACTIVE",
+    portalEnabled: false,
     createdAt: "2026-09-01T10:00:00.000Z",
     updatedAt: "2026-09-01T10:00:00.000Z",
     ...overrides,
@@ -312,5 +313,28 @@ describe("MembersListPage navigation", () => {
     const row = (await screen.findByText("Aarav Singh")).closest("tr")!;
     expect(within(row).getByText("+919000000001")).toBeInTheDocument();
     expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows a Portal column without any password", async () => {
+    mock.onGet(MEMBERS_PATH).reply(() =>
+      replyWith([
+        member({ firstName: "Locked", lastName: "Out", portalEnabled: false }),
+        member({
+          id: "02",
+          firstName: "Online",
+          lastName: "Now",
+          portalEnabled: true,
+        }),
+      ]),
+    );
+
+    renderList();
+
+    const locked = (await screen.findByText("Locked Out")).closest("tr")!;
+    const online = screen.getByText("Online Now").closest("tr")!;
+    expect(within(locked).getByTestId("portal-cell")).toHaveTextContent("Not enabled");
+    expect(within(online).getByTestId("portal-cell")).toHaveTextContent("Enabled");
+    expect(screen.queryByText(/password/i)).not.toBeInTheDocument();
+    expect(JSON.stringify(mock.history.get[0])).not.toMatch(/temporaryPassword|passwordHash/);
   });
 });

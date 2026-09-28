@@ -40,7 +40,8 @@ class ApiClient {
           final path = response.requestOptions.path;
           if (path.contains('/auth/member/login') ||
               path.contains('/auth/member/refresh') ||
-              path.contains('/auth/member/logout')) {
+              path.contains('/auth/member/logout') ||
+              path.contains('/auth/member/change-password')) {
             handler.next(response);
             return;
           }

@@ -13,6 +13,7 @@ import {
   forgotPasswordSchema,
   loginSchema,
   logoutSchema,
+  memberChangePasswordSchema,
   memberLoginSchema,
   platformLoginSchema,
   refreshSchema,
@@ -76,6 +77,12 @@ authRouter.post(
   asyncHandler(authController.memberLogout),
 );
 authRouter.get("/member/me", authenticateMember, asyncHandler(authController.memberMe));
+authRouter.post(
+  "/member/change-password",
+  authenticateMember,
+  validate(memberChangePasswordSchema, "body"),
+  asyncHandler(authController.memberChangePassword),
+);
 
 authRouter.post(
   "/platform/login",

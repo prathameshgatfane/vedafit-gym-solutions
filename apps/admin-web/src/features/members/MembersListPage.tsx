@@ -161,6 +161,7 @@ export function MembersListPage() {
               <th scope="col" className="px-4 py-3 font-medium">Phone</th>
               <th scope="col" className="px-4 py-3 font-medium">Email</th>
               <th scope="col" className="px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="px-4 py-3 font-medium">Portal</th>
               <th scope="col" className="px-4 py-3 font-medium">Added</th>
             </tr>
           </thead>
@@ -173,13 +174,13 @@ export function MembersListPage() {
           >
             {isPending ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   Loading members…
                 </td>
               </tr>
             ) : members.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-fg-muted">
+                <td colSpan={6} className="px-4 py-8 text-center text-fg-muted">
                   {hasFilters
                     ? "No members match those filters."
                     : ownRoster
@@ -189,7 +190,7 @@ export function MembersListPage() {
               </tr>
             ) : (
               members.map((member) => (
-                <tr key={member.id} className="bg-bg hover:bg-fg/5">
+                <tr key={member.id} className="bg-bg hover:bg-accent/10">
                   <td className="px-4 py-3">
                     <Link
                       to={`/members/${member.id}`}
@@ -202,6 +203,12 @@ export function MembersListPage() {
                   <td className="px-4 py-3 text-fg/70">{member.email ?? "—"}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={member.status} />
+                  </td>
+                  <td
+                    data-testid="portal-cell"
+                    className={member.portalEnabled ? "px-4 py-3 text-fg/70" : "px-4 py-3 text-fg-muted"}
+                  >
+                    {member.portalEnabled ? "Enabled" : "Not enabled"}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">
                     {new Date(member.createdAt).toLocaleDateString()}

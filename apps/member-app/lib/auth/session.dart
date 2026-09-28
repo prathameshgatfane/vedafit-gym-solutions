@@ -167,6 +167,27 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await client.post(
+      '/auth/member/change-password',
+      data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
+    if (response.statusCode != 200 || response.data == null) {
+      throw apiErrorMessage(response, 'Could not change password.');
+    }
+    final payload = RefreshPayload.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
+    await _storage.write(key: _refreshKey, value: payload.refreshToken);
+    state = state.copyWith(accessToken: payload.accessToken);
+  }
+
   Future<void> signOut() async {
     final token = await _storage.read(key: _refreshKey);
     try {

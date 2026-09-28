@@ -12,8 +12,17 @@ export interface Member {
   /** `YYYY-MM-DD`, not an ISO instant — the API serializes it that way on purpose. */
   dateOfBirth: string | null;
   status: MemberStatus;
+  /** True once staff has set a portal password. The hash itself is never returned. */
+  portalEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PortalPasswordResult {
+  portalEnabled: true;
+  temporaryPassword: string;
+  phone: string;
+  organizationSlug: string;
 }
 
 export type MemberSortField = "createdAt" | "firstName" | "lastName" | "phone";

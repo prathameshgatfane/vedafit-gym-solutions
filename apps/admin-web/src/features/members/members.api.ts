@@ -1,6 +1,6 @@
 import { apiClient, type ApiPaginated, type ApiSuccess } from "../../lib/api-client";
 import type { MemberFormValues } from "./member.schema";
-import type { Member, MemberListParams } from "./member.types";
+import type { Member, MemberListParams, PortalPasswordResult } from "./member.types";
 
 export interface MemberPage {
   items: Member[];
@@ -92,6 +92,19 @@ export async function archiveMember(
   const { data } = await apiClient.post<ApiSuccess<Member>>(
     membersPath(organizationId, `/${memberId}/archive`),
     {},
+  );
+  return data.data;
+}
+
+/** Staff enable/reset. The plaintext temp password is on this response only. */
+export async function setMemberPortalPassword(
+  organizationId: string,
+  memberId: string,
+  password?: string,
+): Promise<PortalPasswordResult> {
+  const { data } = await apiClient.post<ApiSuccess<PortalPasswordResult>>(
+    membersPath(organizationId, `/${memberId}/portal-password`),
+    password ? { password } : {},
   );
   return data.data;
 }

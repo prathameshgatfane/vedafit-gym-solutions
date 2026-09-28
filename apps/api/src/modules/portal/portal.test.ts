@@ -5,6 +5,7 @@ import { app } from "../../../test/helpers/app";
 import {
   bearer,
   createActor,
+  createPlatformOperator,
   createTestTenant,
   TEST_PASSWORD,
   type TestActor,
@@ -297,5 +298,148 @@ describe("member portal self-scope (1.23.3)", () => {
       organizationSlug: otherTenant.organization.slug,
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("member change-password", () => {
+  it("lets Alice change her password; the old one then fails", async () => {
+    const session = await loginMember("+919111100001");
+
+    const changed = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${session.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "AliceNew9x" });
+
+    expect(changed.status).toBe(200);
+    expect(changed.body.data.accessToken).toEqual(expect.any(String));
+    expect(changed.body.data.refreshToken).toEqual(expect.any(String));
+    expect(changed.body.data).not.toHaveProperty("passwordHash");
+    expect(JSON.stringify(changed.body)).not.toMatch(/AliceNew9x|passwordHash/);
+
+    const oldLogin = await request(app).post("/api/v1/auth/member/login").send({
+      phone: "+919111100001",
+      password: TEST_PASSWORD,
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(oldLogin.status).toBe(401);
+    expect(oldLogin.body.error.code).toBe("INVALID_CREDENTIALS");
+
+    const newLogin = await request(app).post("/api/v1/auth/member/login").send({
+      phone: "+919111100001",
+      password: "AliceNew9x",
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(newLogin.status).toBe(200);
+    expect(newLogin.body.data.member.id).toBe(aliceId);
+
+    await prisma.member.update({
+      where: { id: aliceId },
+      data: { passwordHash: await hashPassword(TEST_PASSWORD) },
+    });
+    const restored = await loginMember("+919111100001");
+    aliceToken = restored.accessToken;
+    aliceRefresh = restored.refreshToken;
+  });
+
+  it("rejects a wrong current password with 401", async () => {
+    const session = await loginMember("+919111100001");
+
+    const res = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${session.accessToken}`)
+      .send({ currentPassword: "WrongPass1", newPassword: "AliceNew9x" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("revokes other refresh families and re-issues the current session", async () => {
+    const member = await portalMember("Carol", "+919111100088");
+    const first = await loginMember("+919111100088");
+    const second = await loginMember("+919111100088");
+
+    const changed = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${second.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "CarolNew9x" });
+    expect(changed.status).toBe(200);
+
+    const oldRefresh = await request(app)
+      .post("/api/v1/auth/member/refresh")
+      .send({ refreshToken: first.refreshToken });
+    expect(oldRefresh.status).toBe(401);
+
+    const currentRefresh = await request(app)
+      .post("/api/v1/auth/member/refresh")
+      .send({ refreshToken: second.refreshToken });
+    expect(currentRefresh.status).toBe(401);
+
+    const newRefresh = await request(app)
+      .post("/api/v1/auth/member/refresh")
+      .send({ refreshToken: changed.body.data.refreshToken });
+    expect(newRefresh.status).toBe(200);
+    expect(newRefresh.body.data.refreshToken).toBeTruthy();
+
+    const live = await prisma.memberRefreshToken.findMany({
+      where: { memberId: member.id, revokedAt: null },
+    });
+    expect(live).toHaveLength(1);
+  });
+
+  it("rejects a staff JWT and a weak new password", async () => {
+    const staff = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set(...bearer(owner))
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "AliceNew9x" });
+    expect(staff.status).toBe(401);
+
+    const session = await loginMember("+919111100001");
+    const weak = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${session.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "short" });
+    expect(weak.status).toBe(400);
+    expect(weak.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects a platform JWT and ignores smuggled member/organization ids", async () => {
+    const operator = await createPlatformOperator();
+    const platform = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${operator.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "AliceNew9x" });
+    expect(platform.status).toBe(401);
+
+    const alice = await loginMember("+919111100001");
+    const smuggled = await request(app)
+      .post("/api/v1/auth/member/change-password")
+      .set("Authorization", `Bearer ${alice.accessToken}`)
+      .send({
+        currentPassword: TEST_PASSWORD,
+        newPassword: "AliceSolo9x",
+        memberId: bobId,
+        organizationId: otherTenant.organization.id,
+      });
+    expect(smuggled.status).toBe(200);
+
+    const aliceOld = await request(app).post("/api/v1/auth/member/login").send({
+      phone: "+919111100001",
+      password: TEST_PASSWORD,
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(aliceOld.status).toBe(401);
+
+    const bobStill = await request(app).post("/api/v1/auth/member/login").send({
+      phone: "+919111100002",
+      password: TEST_PASSWORD,
+      organizationSlug: tenant.organization.slug,
+    });
+    expect(bobStill.status).toBe(200);
+    expect(bobStill.body.data.member.id).toBe(bobId);
+
+    await prisma.member.update({
+      where: { id: aliceId },
+      data: { passwordHash: await hashPassword(TEST_PASSWORD) },
+    });
   });
 });
