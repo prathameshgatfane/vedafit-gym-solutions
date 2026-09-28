@@ -92,7 +92,7 @@ export function Sidebar({
         <button
           type="button"
           data-testid="sidebar-toggle"
-          className="hidden rounded-md p-1.5 text-fg/70 hover:bg-fg/5 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:inline-flex"
+          className="hidden rounded-md p-1.5 text-fg-muted transition-colors hover:bg-accent/15 hover:text-accent-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:inline-flex"
           aria-expanded={!collapsed}
           aria-controls="app-sidebar"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -143,7 +143,7 @@ export function Sidebar({
                   showLabels ? "gap-3 px-3" : "justify-center px-2",
                   isActive
                     ? "bg-accent font-semibold text-accent-fg"
-                    : "text-fg/80 hover:bg-fg/5 hover:text-fg",
+                    : "text-fg-muted hover:bg-accent/15 hover:text-accent-text",
                 ].join(" ")
               }
             >

@@ -81,7 +81,7 @@ export function MemberBillingPanel({ memberId }: { memberId: string }) {
               </tr>
             ) : (
               invoices.map((invoice) => (
-                <tr key={invoice.id} className="bg-bg hover:bg-fg/5">
+                <tr key={invoice.id} className="bg-bg hover:bg-accent/10">
                   <td className="px-4 py-3 font-medium">
                     <Link to={`/invoices/${invoice.id}`} className="text-accent-text hover:underline">
                       {invoice.invoiceNumber}

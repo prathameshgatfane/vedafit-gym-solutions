@@ -178,7 +178,7 @@ export function PaymentsListPage() {
                   onClick={() =>
                     payment.invoiceId ? navigate(`/invoices/${payment.invoiceId}`) : undefined
                   }
-                  className="cursor-pointer bg-bg hover:bg-fg/5"
+                  className="cursor-pointer bg-bg hover:bg-accent/10"
                 >
                   <td className="px-4 py-3 text-fg/70">
                     {new Date(payment.paidAt).toLocaleDateString("en-IN")}

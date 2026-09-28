@@ -201,7 +201,7 @@ export function PlansListPage() {
               </tr>
             ) : (
               plans.map((plan) => (
-                <tr key={plan.id} className="bg-bg hover:bg-fg/5">
+                <tr key={plan.id} className="bg-bg hover:bg-accent/10">
                   <td className="px-4 py-3 font-medium text-fg">{plan.name}</td>
                   <td data-testid="plan-price" className="px-4 py-3 text-fg/70">
                     {formatPrice(plan.price)}

@@ -211,7 +211,7 @@ export function InvoicesListPage() {
                 <tr
                   key={invoice.id}
                   onClick={() => navigate(`/invoices/${invoice.id}`)}
-                  className="cursor-pointer bg-bg hover:bg-fg/5"
+                  className="cursor-pointer bg-bg hover:bg-accent/10"
                 >
                   <td
                     data-testid="invoice-number"

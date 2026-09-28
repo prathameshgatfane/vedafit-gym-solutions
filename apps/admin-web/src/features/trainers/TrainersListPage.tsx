@@ -155,7 +155,7 @@ export function TrainersListPage() {
                   key={trainer.id}
                   data-testid="trainer-row"
                   data-trainer-id={trainer.id}
-                  className="bg-bg hover:bg-fg/5"
+                  className="bg-bg hover:bg-accent/10"
                 >
                   <td className="px-4 py-3 font-medium text-fg">{trainer.user.name}</td>
                   <td className="px-4 py-3 text-fg/70">{trainer.user.email}</td>

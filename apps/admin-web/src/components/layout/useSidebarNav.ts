@@ -73,6 +73,19 @@ export function useSidebarNav() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mdUp, mobileOpen]);
 
+  useEffect(() => {
+    if (mdUp || !mobileOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("#app-sidebar")) return;
+      if (target.closest('[data-testid="sidebar-open"]')) return;
+      setMobileOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mdUp, mobileOpen]);
+
   function toggleCollapsed() {
     setCollapsed((current) => {
       const next = !current;
@@ -88,5 +101,6 @@ export function useSidebarNav() {
     toggleCollapsed,
     openMobile: () => setMobileOpen(true),
     closeMobile: () => setMobileOpen(false),
+    toggleMobile: () => setMobileOpen((open) => !open),
   };
 }

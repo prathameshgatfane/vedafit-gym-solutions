@@ -175,7 +175,7 @@ export function MembershipsListPage() {
               </tr>
             ) : (
               memberships.map((membership) => (
-                <tr key={membership.id} className="bg-bg hover:bg-fg/5">
+                <tr key={membership.id} className="bg-bg hover:bg-accent/10">
                   <td className="px-4 py-3">
                     <Link
                       to={`/memberships/${membership.id}`}

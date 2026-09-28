@@ -56,3 +56,13 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   @apply bg-bg text-fg;
 }
+
+/**
+ * Light-mode wash-out: `text-fg/70` and `/80` are #141414 at alpha. On cream they
+ * look faint even when the math is near AA. Solid `--color-fg-muted` (#5C5854,
+ * 7.05:1 on white) is the locked secondary text. Dark keeps the alpha utilities.
+ */
+[data-theme="light"] .text-fg\/70,
+[data-theme="light"] .text-fg\/80 {
+  color: rgb(var(--color-fg-muted));
+}

@@ -210,4 +210,16 @@ describe("AppShell", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByTestId("sidebar-backdrop")).not.toBeInTheDocument();
   });
+
+  it("closes the mobile drawer when clicking the page outside the sidebar", async () => {
+    mockMdUp(false);
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByTestId("sidebar-open"));
+    expect(screen.getByTestId("sidebar-backdrop")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("heading", { name: "Dashboard" }));
+    expect(screen.queryByTestId("sidebar-backdrop")).not.toBeInTheDocument();
+  });
 });

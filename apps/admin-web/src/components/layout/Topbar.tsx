@@ -8,10 +8,10 @@ import { useTheme } from "./useTheme";
 
 interface TopbarProps {
   mobileOpen: boolean;
-  onOpenMobile: () => void;
+  onToggleMobile: () => void;
 }
 
-export function Topbar({ mobileOpen, onOpenMobile }: TopbarProps) {
+export function Topbar({ mobileOpen, onToggleMobile }: TopbarProps) {
   const navigate = useNavigate();
   const user = useSessionStore((s) => s.user);
   const branches = useSessionStore((s) => s.branches);
@@ -50,11 +50,11 @@ export function Topbar({ mobileOpen, onOpenMobile }: TopbarProps) {
         <button
           type="button"
           data-testid="sidebar-open"
-          className="inline-flex shrink-0 rounded-md p-2 text-fg/80 hover:bg-fg/5 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+          className="inline-flex shrink-0 rounded-md p-2 text-fg-muted transition-colors hover:bg-accent/15 hover:text-accent-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
           aria-expanded={mobileOpen}
           aria-controls="app-sidebar"
-          aria-label="Open menu"
-          onClick={onOpenMobile}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          onClick={onToggleMobile}
         >
           <svg
             viewBox="0 0 24 24"
@@ -113,7 +113,7 @@ export function Topbar({ mobileOpen, onOpenMobile }: TopbarProps) {
           data-testid="theme-toggle"
           aria-pressed={theme === "light"}
           aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
-          className="inline-flex shrink-0 rounded-md p-2 text-fg/80 hover:bg-fg/5 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-flex shrink-0 rounded-md p-2 text-fg-muted transition-colors hover:bg-accent/15 hover:text-accent-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={toggleTheme}
         >
           {theme === "light" ? (

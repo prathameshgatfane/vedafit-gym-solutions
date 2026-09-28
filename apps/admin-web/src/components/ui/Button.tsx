@@ -15,7 +15,7 @@ const variantClasses: Record<Variant, string> = {
   primary:
     "bg-accent text-accent-fg hover:brightness-110 focus-visible:outline-accent",
   secondary:
-    "bg-surface text-fg border border-fg/20 hover:border-accent focus-visible:outline-accent",
+    "bg-surface text-fg border border-fg/20 hover:border-accent hover:bg-accent/10 focus-visible:outline-accent",
   danger:
     "bg-surface text-danger border border-danger/40 hover:border-danger focus-visible:outline-danger",
 };

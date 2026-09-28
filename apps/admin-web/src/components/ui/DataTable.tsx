@@ -59,7 +59,7 @@ export function DataTable({
           "[&_th:first-child]:bg-surface",
           "[&_th:first-child]:shadow-[1px_0_0_0_var(--color-border)]",
           "[&_td:first-child]:sticky [&_td:first-child]:left-0 [&_td:first-child]:z-10",
-          // inherit so `tr:hover:bg-fg/5` tints the pin instead of leaving a black hole
+          // inherit so `tr:hover:bg-accent/10` tints the pin instead of leaving a black hole
           "[&_td:first-child]:bg-inherit",
           "[&_td:first-child]:shadow-[1px_0_0_0_var(--color-border)]",
         ].join(" ")}

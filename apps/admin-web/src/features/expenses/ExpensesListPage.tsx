@@ -195,7 +195,7 @@ export function ExpensesListPage() {
                   key={expense.id}
                   data-testid="expense-row"
                   data-expense-id={expense.id}
-                  className="bg-bg hover:bg-fg/5"
+                  className="bg-bg hover:bg-accent/10"
                 >
                   <td className="px-4 py-3 text-fg/70">{expense.expenseDate}</td>
                   <td className="px-4 py-3 text-fg">

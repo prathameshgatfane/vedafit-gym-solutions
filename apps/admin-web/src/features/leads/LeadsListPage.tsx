@@ -199,7 +199,7 @@ export function LeadsListPage() {
                   data-testid="lead-row"
                   data-lead-id={lead.id}
                   data-lead-status={lead.status}
-                  className="bg-bg hover:bg-fg/5"
+                  className="bg-bg hover:bg-accent/10"
                 >
                   <td className="px-4 py-3 font-medium text-fg">{lead.name}</td>
                   <td className="px-4 py-3 text-fg/70">{lead.phone}</td>
