@@ -12,6 +12,9 @@ cd apps/super-admin && pnpm e2e
 
 # Slice B — tokens + theme toggle (own key vedafit.platform.theme; not admin-web).
 cd apps/super-admin && E2E_HEADFUL=1 pnpm e2e:slice-b
+
+# SA-R — collapsible shell + org DataTable at 375 / 768 / 1440.
+cd apps/super-admin && E2E_HEADFUL=1 pnpm e2e:responsive
 ```
 
 Creates a namespaced org (`e2e-sa-<timestamp>`). Does **not** suspend or replan Demo Gym.

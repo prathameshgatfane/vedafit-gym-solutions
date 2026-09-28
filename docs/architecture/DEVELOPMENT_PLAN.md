@@ -40,6 +40,7 @@ committed.
 | 13 | Flutter member **web** (Chrome) | **Done** |
 | 14 | Android / iOS packaging + runtime | **In progress** (not Done) |
 | 15 | Super Admin / SaaS | **Done** (2026-09-14) — 10.20 checked; Super Admin headed Chrome + admin-web 3–13 re-verified |
+| 15+ | SaaS plan management (post-15) | **Phase J Done**. **Phase K Done** (2026-09-27). Phases 6–13 Done. Next: Phase L (staging / production deploy). |
 
 Phase 14 remaining blockers: **no production API host**, **no macOS/Xcode for iOS**.
 Android force-stop session restore: **PASS** (real device, Alice Home, no login screen).
@@ -3304,6 +3305,7 @@ Authenticated platform fleet APIs. No Super Admin UI (15.9), no `/auth/me` entit
 |---|---|---|
 | GET | `/api/v1/platform/organizations` | 1.9 `page`/`limit`/`search`/`status`/`sortBy`/`sortOrder`. `status` = `OrganizationStatus`. Each item includes `subscription: { status, planCode, currentPeriodEnd }` |
 | GET | `/api/v1/platform/organizations/:organizationId` | org + OWNER `{ email }` + subscription + entitlement snapshot |
+| GET | `/api/v1/platform/organizations/:organizationId/usage` | Phase H: live usage + current-plan limits + feature flags. Platform JWT only |
 | POST | `/api/v1/platform/organizations` | same body as public signup; `provisionOrganization`; Trial; no tokens |
 | PATCH | `/api/v1/platform/organizations/:organizationId/subscription` | `planId` and/or `status` (`TRIAL`\|`ACTIVE`\|`PAST_DUE`\|`CANCELLED`) and/or `currentPeriodEnd` |
 | GET | `/api/v1/platform/plans` | catalog + entitlements; prices are stored INR **0.00 stubs** |
@@ -3626,6 +3628,638 @@ production host) or Phase 16 without explicit approval. Super Admin responsive r
 and admin-web Slices 3/5 stay queued — write a plan first; Super Admin mobile use is
 an open question (10.22).
 
+#### SaaS follow-on B — Stop catalog clobber + plan CRUD APIs
+**Status:** Done (2026-09-25)
+
+Approved domain decisions: live-plan entitlements + subscription `priceSnapshot`; no plan
+versioning; keep `isActive` (no DRAFT/ARCHIVED enum); `syncSaasPlanCatalog` is insert-if-missing
+only. Super Admin UI editor, org-create plan picker, owner credential panel, remaining
+entitlement enforcement, and usage API are **not** in this slice (C–L).
+
+**Scope:** Platform operators can create, read, edit, activate, and archive SaaS plans.
+Archived plans cannot be assigned to a different organization. Seed/provision no longer
+rewrites Trial / Starter / Growth after an operator edit.
+
+**No migration.** Existing `saas_plans.isActive` is the lifecycle flag. Archive = `isActive
+false`. Plans with subscriptions are not deleted.
+
+**API changes**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/platform/plans` | Existing list; now includes `organizationCount`, `createdAt`, `updatedAt` |
+| POST | `/api/v1/platform/plans` | Create; 201; full allowlisted entitlement set required |
+| GET | `/api/v1/platform/plans/:planId` | 404 `SAAS_PLAN_NOT_FOUND` |
+| PATCH | `/api/v1/platform/plans/:planId` | Name, description, prices, currency, trialDays, entitlements. Code is immutable. |
+| POST | `/api/v1/platform/plans/:planId/activate` | `isActive true`; idempotent |
+| POST | `/api/v1/platform/plans/:planId/archive` | `isActive false`; existing subscriptions keep the plan |
+
+Validation: unique normalized code (`^[a-z][a-z0-9-]*$`), non-negative prices, non-negative
+trial days, entitlement keys from `SAAS_ENTITLEMENT_KEY` only, type/value match, no duplicate
+keys. Client-sent prices/entitlements on **assignment** are still rejected (15.8 `.strict()`).
+
+`PATCH /platform/organizations/:id/subscription` now returns 409 `SAAS_PLAN_INACTIVE` when
+`planId` is a **different**, inactive plan. Re-sending the org's current (possibly archived)
+plan while changing status/period is allowed. New `attachOrganizationSubscription` rows also
+reject inactive plans.
+
+**Audit:** `SAAS_PLAN_CREATED`, `SAAS_PLAN_UPDATED`, `SAAS_PLAN_ACTIVATED`,
+`SAAS_PLAN_ARCHIVED`, `PLAN_ENTITLEMENTS_CHANGED`. `organizationId` is null (catalog is
+global). No passwords, hashes, or tokens in `beforeJson` / `afterJson`.
+
+**Error codes added:** `DUPLICATE_SAAS_PLAN_CODE`, `SAAS_PLAN_INACTIVE`.
+
+**Files:** `saas-catalog.ts`; `saas-plan.service.ts`; `platform.schema.ts` / `routes.ts` /
+`controller.ts` / `service.ts` / `platform-audit.ts`; `error-codes.ts`;
+`saas-catalog.test.ts`; `platform.plans.test.ts`; `platform.organizations.test.ts`.
+
+**UI changes:** none. Super Admin Plans page is still read-only (Phase C).
+
+**Security:** platform JWT only. Staff/member/anonymous are 401 on every new plan route.
+`.strict()` rejects spoofed `platformUserId` / `organizationId`. Entitlement keys are
+allowlisted. Catalog sync cannot reset operator prices or limits.
+
+**Tests executed (2026-09-25):**
+- Focused: `saas-catalog.test.ts` 7, `platform.plans.test.ts` 5, `platform.organizations.test.ts` 7, `platform.audit.test.ts` 6 — **25 passed**
+- Regression: `saas-entitlements.test.ts` 8, `organization-provisioning.test.ts` 7, `platform.signup.test.ts` 14, `platform.organization-status.test.ts` 7 — **36 passed**
+- `pnpm --filter api typecheck` clean
+
+**Known limitations / remaining work:** Super Admin cannot yet edit plans in the UI (C/I).
+New gyms still default to Trial (D). Owner password is still operator-typed with no success
+panel (E). Assign-plan confirm copy is still generic (F). `trainers` / reports /
+notifications are still unenforced (G). No usage endpoint (H). No PSP.
+
+**Next recommended slice:** **Phase C** — Super Admin entitlement editor + confirmation
+(affected org count). Do not start without approval.
+
+#### SaaS follow-on C — Super Admin plan management UI + entitlement editor
+**Status:** Done (2026-09-26)
+
+Phase B APIs only. Super Admin can now view, create, edit, activate, and archive SaaS plans
+through the existing design system. Entitlement keys stay the Phase B allowlist. Live-plan
+rule is shown on edit confirmations (`N organizations currently on this plan will receive
+the new limits immediately. Stored subscription prices are unchanged.`).
+
+**Scope:** `/plans` card grid (kept; no new table), `/plans/new`, `/plans/:planId`. Typed
+entitlement editor (LIMIT / UNLIMITED / boolean). Confirmation before create, edit, archive,
+and activate. API errors surface on the page. Mutations invalidate `["platform", "plans"]`.
+
+**No migration. No API schema changes.** Uses Phase B `POST/PATCH/GET /platform/plans` and
+activate/archive. Create still requires the full entitlement set; edit PATCH does not send
+`code`.
+
+**UI changes:** `PlansListPage` (Create / Edit / Archive / Activate, org count, human
+labels); `PlanFormPage`; `EntitlementEditor`; `ConfirmDialog` accepts `ReactNode` and is
+slightly wider. Organization create form and assign-plan page are unchanged.
+
+**Security:** still platform JWT via existing Super Admin client. No entitlement keys
+outside the catalog. Code is read-only on edit.
+
+**Tests executed (2026-09-26):**
+- `pnpm --filter super-admin test` **62/0** (PlansListPage 5, PlanFormPage 5, rest regression)
+- `pnpm --filter super-admin typecheck` clean
+- Live Super Admin: created `phase-c-check`, Growth edit confirm showed
+  “1 organization currently on this plan…”, archive of `phase-c-check` succeeded. Growth/Starter/Trial unchanged.
+
+**Known limitations / remaining work:** New gyms still default to Trial (D). Owner
+credential panel (E). Assign-plan confirmation is still generic (F, now Done). `trainers` / reports /
+notifications still unenforced (G). No usage API (H). No PSP. No Super Admin E2E update
+(K).
+
+**Next recommended slice:** **Phase D** — Super Admin organization create with plan
+assignment. Do not start without approval.
+
+#### SaaS follow-on D — Super Admin organization creation with SaaS plan assignment
+**Status:** Done (2026-09-26)
+
+Super Admin create now chooses the SaaS plan at provisioning time. The selected plan is
+attached in the **same** `provisionOrganization` transaction as Organization, Main Branch,
+roles, OWNER, SMS templates, and `OrganizationSubscription`. There is no
+organization-without-subscription window.
+
+**Scope:** Super Admin-only `POST /platform/organizations` body:
+`planId` (required), `subscriptionStatus` (default TRIAL), `billingInterval` (default
+MONTHLY), optional `currentPeriodEnd`. Server loads the plan by id; client prices and
+entitlements are rejected (`.strict()`). Inactive/unknown plans fail before or inside the
+transaction and roll back. Public `POST /platform/signup` stays Trial-only.
+
+**Reuse:** `provisionOrganization` / `attachOrganizationSubscription` (optional period end;
+yearly `priceSnapshot` uses `priceYearly`; trial days come from the plan). Owner still types
+a password; no success-panel / generated-password work (E). Assign-plan page unchanged (F).
+
+**UI:** Organization create form — plan picker (active plans only), status, interval,
+optional period end, read-only plan preview. After submit, detail shows the assigned
+subscription. Gym Admin `POST /auth/login` + `GET /auth/me` returns the selected org and
+plan.
+
+**Tests executed (2026-09-26):**
+- API: `platform.organizations` 9, `organization-provisioning` 9, `platform.signup` 14,
+  `platform.audit` 6, `saas-catalog` 7 — **45 passed** in the focused rerun
+- `pnpm --filter super-admin test` **62/0**
+- `pnpm --filter api typecheck` and `pnpm --filter super-admin typecheck` clean
+- Live Super Admin: created `phase-d-check` on Growth / ACTIVE / YEARLY. Owner login
+  `/auth/me` returned that org + `growth` + `ACTIVE`.
+
+**Known limitations / remaining work:** Owner credential panel (E). Assign-plan confirmation
+is still generic (F). `trainers` / reports / notifications still unenforced (G). No usage
+API (H). No PSP. No Super Admin E2E update (K) beyond selecting Trial so Phase 15 create
+still works.
+
+**Next recommended slice:** **Phase E** — owner credential success-panel redesign. Do not
+start without approval.
+
+#### SaaS follow-on E — Owner credential provisioning / one-time success panel
+**Status:** Done (2026-09-26)
+
+Super Admin create can generate a temporary OWNER password on the **server** (reuse of
+`generateTemporaryPassword`: 10 chars, I/l/O/0 excluded, existing strength policy) or keep
+the Phase D manual password. Only `passwordHash` is persisted. A generated plaintext is
+returned **once** on the create response as `credentials.temporaryPassword`. Manual create
+does not echo the password.
+
+**API:** `POST /platform/organizations` accepts `generatePassword`. When true, any
+client-sent `owner.password` is ignored. Public signup is unchanged (password required).
+Create still uses `provisionOrganization` (hash outside the tenant transaction, owner
+inside it). `ORG_PROVISIONED` audit is unchanged and does not include secrets. List,
+detail, `/auth/me`, and subscription APIs never return the plaintext.
+
+**UI:** Generate (default) vs Set password manually (password + confirm). After success,
+a one-time panel shows org / plan / status / billing / owner email. Generated password is
+kept only in component state (not Zustand, storage, URL, or React Query cache). Copy uses
+`navigator.clipboard` with a manual-copy fallback. Closing an uncopied generated password
+confirms first. Continue navigates to organization detail, which never shows a password.
+
+**Tests executed (2026-09-26):**
+- Focused API: `platform.organizations` 11, `organization-provisioning` 9,
+  `platform.signup` 14, `platform.audit` 6, `saas-catalog` 7 — **47 passed**
+- `pnpm --filter super-admin test` **66/0**
+- Typecheck clean for api and super-admin
+- Live: created `Sparta Gym Phase E` (`sparta-gym-phase-e`) Growth / ACTIVE / MONTHLY
+  with a generated password. Panel shown once. Clipboard fallback + close confirm worked
+  in the automation browser. Owner staff login + `/auth/me` matched the org and Growth /
+  ACTIVE. Platform `/auth/platform/me` denied. Detail page had no password.
+
+**Known limitations / remaining work:** Assign-plan confirmation was still generic at
+the end of E (completed in F). `trainers` / reports / notifications still unenforced (G).
+No usage API (H). No PSP. No Super Admin E2E rewrite (K).
+
+**Next recommended slice at the time:** **Phase F** — now Done. See below.
+
+#### SaaS follow-on F — Subscription lifecycle / assign-plan workflow hardening
+**Status:** Done (2026-09-26)
+
+**Current path before this slice:** `PATCH /platform/organizations/:organizationId/subscription`
+accepted `planId` / `status` / `currentPeriodEnd` only (no `billingInterval`). `.strict()`
+already rejected client `price`, entitlements, and `organizationId`. A different inactive
+plan was refused. `PLAN_CHANGED` fired only when `planId` actually changed. The service
+always wrote the row and always wrote `SUBSCRIPTION_CHANGED`, even for a no-op, and
+rewrote `priceSnapshot` whenever `planId` was present (including the same plan). Super
+Admin confirm was a generic sentence; the form had no interval field.
+
+**Server:** The PATCH now also accepts `billingInterval` (`MONTHLY` | `YEARLY`). Organization
+id stays on the route. Plan must exist; a different archived plan is `SAAS_PLAN_INACTIVE`.
+Period end must be after the existing period start. Catalog price and entitlements are not
+accepted. `priceSnapshot` is rewritten only when plan or interval actually changes, from
+the selected active plan + selected interval. Status/period-only updates keep the existing
+snapshot. A no-op request returns the current subscription without a DB write or audit.
+`PLAN_CHANGED` only when `planId` changes; `SUBSCRIPTION_CHANGED` only when configuration
+changes. Owner, branches, users, and gym financial/membership rows are not touched.
+
+**UI:** Organization detail assign-plan form includes billing interval. Confirm shows
+Organization plus CURRENT vs NEW (plan, status, interval, snapshot vs catalog price,
+period end). When the plan changes, entitlement impact uses the real catalog rows and
+marks unchanged dimensions. Copy states that entitlements take effect immediately and
+that gym payments, invoices, memberships, and owner credentials are not changed. After
+success the detail query is invalidated.
+
+**Tests executed (2026-09-26):**
+- Focused API: `platform.subscription` 6, `platform.organizations` 11,
+  `platform.signup` 14, `platform.audit` 6, `saas-catalog` 7, `platform.plans` 5,
+  `organization-provisioning` 9 — **58 passed**
+- `pnpm --filter super-admin test` **69/0**
+- Typecheck clean for api and super-admin. Lint: existing unused-var warnings only.
+- Live: created `Phase F Check` (`phase-f-check`) on Trial / TRIAL / MONTHLY. Owner
+  login + `/auth/me` showed Trial. Super Admin confirm showed CURRENT Trial vs NEW
+  Starter / ACTIVE / YEARLY with real entitlement deltas (Members 50 → 200, Staff
+  3 → 8, Leads Disabled → Enabled). After confirm, detail and `/auth/me` showed
+  Starter / ACTIVE / YEARLY. Owner login still worked. Gym member / membership /
+  invoice / payment rows unchanged. Audits: `PLAN_CHANGED` + `SUBSCRIPTION_CHANGED`
+  only (no secrets). Archived plan assign returned `SAAS_PLAN_INACTIVE`. Editing the
+  Starter catalog price did not rewrite this org's `priceSnapshot`. Demo Gym was not
+  modified.
+
+**Known limitations / remaining work:** `trainers` / reports / notifications were still
+unenforced at the end of F (completed in G). No usage API (H). No PSP / SaaS invoices.
+No Super Admin E2E rewrite (K).
+
+**Next recommended slice at the time:** **Phase G** — now Done. See below.
+
+#### SaaS follow-on G — Remaining entitlement enforcement
+**Status:** Done (2026-09-26)
+
+Live-plan entitlements stay authoritative. Existing `members.max`, `branches.max`,
+`staff.max`, and `leads` checks were left intact. Phase G only wired remaining keys
+that already have a real backend consumption path.
+
+**Enforced now**
+- `trainers` (BOOLEAN) at `POST /trainers` → `trainerService.create`, inside the same
+  organization `FOR UPDATE` transaction used by other write-time gates.
+- `reports.enabled` (BOOLEAN) at `GET /reports/dashboard` and `GET /reports/profit-loss`.
+- `notifications.enabled` (BOOLEAN) before `scanOrganization` queues work, before the
+  send worker calls the transport, and on `POST /notifications/run` (202 when allowed).
+  Nightly tick skips a disabled org instead of failing the whole job.
+
+**Already enforced (unchanged)**
+- `members.max`, `branches.max`, `staff.max`, `leads`
+
+**Deferred — no real consumption path yet**
+- `whatsapp.enabled` — no WhatsApp channel or provider. Phase 12 sender is log-only
+  (`SMS` / `EMAIL` / `PUSH` only).
+- `online_payments.enabled` — gym payments are staff-recorded `CASH` / `CARD` / `UPI` /
+  `BANK_TRANSFER` / `OTHER`. No tenant payment-order / PSP path. SaaS billing is not
+  this entitlement.
+- `storage.max` — no tenant file upload/storage path; no reliable stored-byte usage.
+  Defer metering to Phase H if uploads are added.
+- `monthly_sms.max` — notification scan uses SMS *templates*, but transport is
+  `logOnlySender` with no monthly usage source. Do not fake a count. Defer to Phase H.
+
+**Tests executed (2026-09-26):**
+- Focused: `saas-entitlements-remaining` 7, `saas-entitlements` 8, `trainer` 16,
+  `report` 14, `notification` 4 — **49 passed**
+- Typecheck clean. Lint: existing unused-var warning in `trainer.test.ts` only.
+- Live: created `Phase G Check` (`phase-g-check`) on Trial. Owner `/auth/me` showed
+  `trainers=false`. Trainer create → `403 FEATURE_DISABLED`. Assigned Starter → create
+  `201`. Dashboard and P&L `200`. Assigned a local flags-off plan → reports and
+  notification run `403 FEATURE_DISABLED`. Assigned Growth → dashboard `200`,
+  notification run `202`. Owner login still worked. Demo Gym was not modified.
+
+**Known limitations / remaining work:** Usage / limits API (H). No PSP. No Super Admin
+E2E rewrite (K). Deferred keys above stay catalog-only until their features exist.
+
+**Next recommended slice at the time:** **Phase H** — now Done. See below.
+
+#### SaaS follow-on H — Usage / limits API
+**Status:** Done (2026-09-26)
+
+Phase H is observability / limits reporting, not billing or metering. The backend remains
+the source of truth. Counts are live `COUNT` queries against the same filters
+`assertEntitlement` already uses. No usage-counter table, Redis cache, or tenant usage
+endpoint was added — Super Admin visibility is platform-only. Staff `/auth/me` already
+exposes informational entitlements.
+
+**Usage sources (same definition as enforcement)**
+- `members` → `Member` where `deletedAt` is null and `status` is not `ARCHIVED` → `members.max`
+- `branches` → all `Branch` rows for the org → `branches.max`
+- `staff` → `User` where `deletedAt` is null → `staff.max`
+- `trainers` → all `TrainerProfile` rows (observational count). Entitlement `trainers` stays BOOLEAN — not converted into a numeric cap
+- `leads` → all `Lead` rows (no `deletedAt`; every status). Entitlement `leads` stays BOOLEAN
+
+**Deferred / unavailable (UNKNOWN ≠ ZERO)**
+- `storage.max`, `monthly_sms.max`, `whatsapp.enabled`, `online_payments.enabled`
+- Reported as `{ available: false, reason: "NO_CONSUMPTION_PATH" }`
+- Feature flags for WhatsApp / online payments still come from the live catalog BOOLEAN, not from a fake usage count
+
+**Limit semantics**
+- Finite LIMIT: `used`, `limit`, `remaining = max(limit - used, 0)`, `overLimit = used > limit`
+- UNLIMITED: `limit`/`remaining` null, `unlimited` true, `overLimit` false
+- Missing LIMIT key fail-closes as `limit = 0`
+- Missing BOOLEAN feature: `enabled = false`; countable BOOLEAN rows still report `used` with no invented cap
+- Over-limit after downgrade is reported only. Existing members/staff/branches are not deleted or archived
+
+**API:** `GET /api/v1/platform/organizations/:organizationId/usage`
+- `authenticatePlatform` only. Organization id from the route.
+- 404 `ORGANIZATION_NOT_FOUND`. Query/body `organizationId` is ignored.
+- Envelope: `{ success, data: { organization, subscription, usage, features } }`
+- Current plan entitlements are read live. A plan change is visible on the next GET.
+
+**Query strategy:** one organization + subscription + plan + entitlements read, plus five
+parallel aggregate counts. No per-row N+1. No Redis.
+
+**Not in this slice:** tenant usage endpoint, usage dashboard UI, PSP, SaaS invoices,
+overage/usage-based billing, automatic plan changes, SMS/WhatsApp/storage/online-payment
+providers.
+
+**Tests executed (2026-09-26):**
+- Focused: `platform.usage` 6
+- Platform regression: `platform.organizations` 11, `platform.subscription` 6,
+  `platform.plans` 5, `platform.signup` 14, `platform.audit` 6, `saas-catalog` 7,
+  `organization-provisioning` 9, `phase15.regression` 4, `saas-entitlements` 8,
+  `saas-entitlements-remaining` 7, `platform.organization-status` 7 — **90 passed**
+- Typecheck clean. Lint: existing unused-var warning in `trainer.test.ts` only.
+
+**Live:** created `Phase H Check` (`phase-h-check`) on Starter. Usage showed members
+`3/200` (remaining 197), staff/branch/trainer/lead counts matched the database, Starter
+feature flags, and deferred metrics `NO_CONSUMPTION_PATH` (not zero). Assigned Growth →
+members `3/unlimited` immediately. Assigned a local members=1 plan → `3/1` `overLimit=true`
+and the three members remained. Assigned Trial → members `3/50`, `trainers.enabled=false`.
+Staff JWT and member JWT → 401. Missing org → 404. Query `organizationId` did not override
+the route. Demo Gym was not modified.
+
+**Known limitations / remaining work:** Super Admin UI does not yet surface this payload
+(Phase I). No PSP / SaaS invoices. No Super Admin E2E rewrite (K). Deferred keys stay
+unavailable until those products exist.
+
+**Next recommended slice at the time:** **Phase I** — now Done. See below.
+
+#### SaaS follow-on I — Super Admin UI completion
+**Status:** Done (2026-09-27)
+
+Phase I connects existing platform APIs to Super Admin. No visual redesign. Routing,
+auth, API client, typography, layout, plan UI, and create/credential flows were
+preserved. No new backend endpoints were added.
+
+**Already implemented before this slice:** organization list/detail/create, Phase C
+plan cards/editor, Phase F subscription CURRENT vs NEW confirm, Phase E one-time
+owner credentials, dashboard, AppShell.
+
+**Added / completed**
+- Organization detail now separates Organization, Owner, Subscription, Actions,
+  Entitlements, Usage, and Features.
+- Usage is fetched only for the open organization:
+  `GET /platform/organizations/:organizationId/usage`.
+- Finite usage: `used / limit` plus remaining or over-limit surplus.
+- Unlimited: Used N, Limit Unlimited.
+- Trainers/leads: observational `N created` plus Feature Enabled/Disabled.
+  BOOLEAN flags are not turned into numeric caps.
+- Deferred storage / monthly SMS / WhatsApp / online-payment usage: Unavailable +
+  `NO_CONSUMPTION_PATH` copy. Never shown as zero.
+- Entitlements use catalog human labels (Unlimited / Enabled / Disabled / number).
+- Plan change invalidates organization detail and usage (`organizationKeys.all`).
+- Loading usage does not render placeholder zeros. Usage errors are shown.
+
+**Organization list:** still the existing paginated API. Shows name, slug, email,
+org status, plan code, subscription status, period end. Owner email and billing
+interval are **not** on the list payload — they stay on detail. No per-row usage
+fetch (would be N+1). No second list API.
+
+**Unchanged on purpose**
+- Phase D/E create + one-time credential panel
+- Phase C plan cards/editor
+- Phase F assign-plan confirm
+- No tenant usage API, no audit-log UI, no PSP/billing
+
+**Tests executed (2026-09-27):**
+- `pnpm --filter super-admin test` **77/0**
+  (includes `OrganizationDetailPage` 8, `usage-display` 4, `OrganizationsListPage` 8,
+  `OrganizationFormPage` 7, plans 10, plus existing auth/shell/security)
+- Typecheck clean. Lint: existing unused-var warning in `e2e/phase15-verify.ts` only.
+
+**Live:** created `Phase I Check` (`phase-i-check`) on Starter with 3 members. List
+showed the org. Detail showed subscription, labeled entitlements (members 200),
+usage `3/200` remaining 197, trainers/leads observational counts, feature flags,
+and Unavailable deferred metrics. Assigned Trial via CURRENT vs NEW confirm →
+entitlements became members 50 / staff 3 / trainers Disabled and usage refreshed
+to `3/50`. Assigned a members=1 plan → `3/1` Over limit by 2 plus retention copy;
+members remained. Owner staff login still worked. localStorage held only the theme
+key. Demo Gym was not modified.
+
+**Known limitations / remaining work:** list API still has no owner or
+`billingInterval` (not invented in UI). No platform audit-log page (15.11). No
+PSP / SaaS invoices. Super Admin E2E rewrite is Phase K.
+
+**Next recommended slice at the time:** **Phase J** — now Done. See below.
+
+#### SaaS follow-on J — Security / Audit Hardening
+**Status:** Done (2026-09-27)
+
+Phase J audited the current implementation (not the plan document) and applied
+only justified security fixes. No PSP, no billing, no UI redesign, no auth
+rewrite, no Phase K E2E, no Phase L deploy. No migration was required.
+
+**Commit already on main:** `ead31f9` — suspended-org tenant write gate + pino
+redaction. That commit was not amended.
+
+**Audit table (source of truth = current code)**
+
+| Area | Finding | Severity | Existing Protection | Required Action |
+|---|---|---|---|---|
+| JWT isolation | Custom `type` claim; platform JWT has `platformUserId` only | No issue | verify* + middleware; platform-auth + 15.12 tests | None |
+| Refresh cookies | Distinct names/paths; httpOnly; Secure in production | No issue | auth.cookies.test.ts | None |
+| Refresh rotation/replay | Family revoke on reuse | No issue | auth / platform / portal tests | None |
+| Tenant / branch scope | URL / body / query checked against JWT | No issue | tenantScope + auth.test.ts | None |
+| Platform mutations | `.strict()`; inactive plan refused; no-op skips audit | No issue | Phase F tests | None |
+| Credentials | CSPRNG; one-time credentials; hash in DB; not in detail/cache | No issue | platform.organizations + FormPage tests | None |
+| CORS | `*` rejected at boot; credentials true | No issue | cors.test.ts, env refine | None |
+| Catalog sync | Insert-if-missing | No issue | saas-catalog.test.ts | None |
+| Audit coverage | Listed mutations audited; payloads have no secrets | No issue | platform.audit.test.ts | Safe `credentialMode` only |
+| Suspended tenant writes | Access JWT could still POST/PATCH tenant data until TTL | High | Login/refresh blocked; GET /me allowed | Write gate (ead31f9) |
+| Member change-password while suspended | Auth router bypassed org write middleware and re-issued a session | High | JWT identity only | Org-status check |
+| Logger redaction | Authorization / password fields could hit access logs | Medium | Envelope tests omit hashes | pino redact (ead31f9) |
+| Entitlement delta | Server-internal only; no caller passes custom delta | Low / no client bypass | Default 1; org from JWT | Fail-closed if delta is not a positive integer |
+| Refresh / reset dedicated limiters | None | Medium (ops) | Global IP ceiling + replay detect | Defer |
+| Staff / platform change-password | Missing | Medium (feature) | Reset / login | Defer |
+
+**Mixed-file review (uncommitted B–I plus Phase J hunks)**
+
+- `saas-entitlements.service.ts`: Phase H usage helpers vs Phase J `delta >= 1`
+  integer check. Delta is never client-supplied and no production caller passes
+  it. The check stays as fail-closed defense (NaN would otherwise pass
+  `used + delta > limit`).
+- `platform-audit.ts` / `platform.service.ts`: Phase B–F audit actions vs Phase J
+  `credentialMode: generated | manual` on `ORG_PROVISIONED`. No password, hash,
+  or token is written.
+- `member-auth.service.ts`: Phase member change-password feature vs Phase J
+  `organization.status === ACTIVE`. Required — this route is not on
+  `organizationRouter`.
+
+**Fixes implemented**
+- `rejectSuspendedOrganizationWrites` on `/organizations` (committed).
+- Pino redact paths for Authorization, cookies, passwords, tokens (committed).
+- Member change-password requires the gym to be ACTIVE (working tree).
+- `ORG_PROVISIONED` audit may record `credentialMode` only (working tree).
+- `assertEntitlement` rejects non-positive / non-integer delta (working tree).
+
+**Write-route audit:** all tenant POST/PATCH/PUT/DELETE live under
+`organizationRouter` except auth session routes and GET-only portal/permissions.
+Platform administration is unchanged. Logout / forgot-password / reset-password
+do not issue a tenant session; reset was left as-is.
+
+**No database migration.**
+
+**Tests executed (2026-09-27)**
+- Focused security: **55/0**
+  (`logger.redact`, organization-status, entitlements, audit, portal
+  change-password, cookies, CORS, platform-auth)
+- API regression: **97/0**
+  (auth, platform organizations/subscription/plans/signup, catalog,
+  remaining entitlements, provisioning)
+- Super Admin: **77/0** (UI not changed this slice; suite re-run)
+- API typecheck: clean
+- API lint: 0 errors; existing unused-var warning in `trainer.test.ts`
+
+**Live:** created isolated `Phase J Check` orgs (not Demo Gym). Platform login,
+credential one-time shape, CORS allowlist, staff JWT rejected on platform
+routes, suspend → member create and org PATCH `403 ACCOUNT_INACTIVE`, GET
+`/auth/me` still 200, staff login blocked, platform `/me` still 200, restore →
+member create 201. No plaintext credentials in this record.
+
+**Deferred (not required to close J)**
+- Dedicated refresh / reset-password rate limiters
+- Staff or platform change-password endpoints
+- Redis-backed rate-limit store
+- Immediate lockout of GET `/auth/me` after suspend (accepted 15.7)
+- RFC `aud` / `iss` JWT redesign
+- WhatsApp / SMS / storage / online-payment consumption metering
+- Platform audit-log UI (15.11)
+- Super Admin E2E rewrite (Phase K)
+- Staging / production deploy (Phase L)
+
+**Next recommended slice at the time:** **Phase K** — now Done. See below.
+
+#### SaaS follow-on K — Automated E2E Closeout
+**Status:** Done (2026-09-27). Admin-web E2E closeout Phases 6–13. **Not Phase L.**
+
+First slice only: inspect existing admin-web E2E harness and re-run Phase 6.
+Do not run Phase 7+. Do not start Phase L.
+
+**Phase 6 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase6-verify.ts`,
+`pnpm --filter admin-web e2e:billing`, fixtures `apps/api/scripts/phase6-fixtures.ts`.
+Purpose: payments + invoices (sell-term invoice, instalments, overpay, refund +
+audit, concurrent numbering, RBAC, pending fees, member balance, forfeiture,
+ledger). Expected **95** checks.
+
+**Command:** `pnpm e2e:billing` (after `pnpm tsx scripts/phase6-fixtures.ts`).
+**Result:** **95 passed, 0 failed**, ~45s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; namespaced members `+9196666…` and plan
+`P6 Gold`. Fixture teardown is prefix-scoped. Invoice sequence left as-is.
+Phase J Check orgs were not used. No product, schema, or harness changes.
+
+**Next E2E phase at the time:** Phase 7 — now Done. See below.
+
+**Phase 7 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase7-verify.ts`,
+`pnpm --filter admin-web e2e:attendance`, fixtures `apps/api/scripts/phase7-fixtures.ts`.
+Purpose: manual attendance (covered check-in, five override states, duplicate
+no-op, concurrent unique index, branch stamp vs home branch, `BRANCH_REQUIRED`,
+TRAINER/ACCOUNTANT RBAC, org-local day). Expected **88** checks.
+
+**Command:** `pnpm e2e:attendance` (after `pnpm tsx scripts/phase7-fixtures.ts`).
+**Result:** **88 passed, 0 failed**, ~29s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; members `+9195555…`, plan `P7 Gold`,
+branch `P7 Bandra`. Teardown is prefix-scoped and does not delete Phase 6
+`+9196666…` / `P6` rows. No product, schema, or harness changes.
+
+**Next E2E phase at the time:** Phase 8 — now Done. See below.
+
+**Phase 8 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase8-verify.ts`,
+`pnpm --filter admin-web e2e:dashboard`, fixtures `apps/api/scripts/phase8-fixtures.ts`.
+Purpose: dashboard widgets match hand-written SQL (members, revenue, outstanding,
+expiring, attendance); Main vs P8 Andheri disagree; transfer moves headcount not
+revenue; RECEPTIONIST/TRAINER/ACCOUNTANT widget RBAC; cancelled invoices and
+failed payments excluded. Plan originally documented 55 checks; this re-run
+executed **56** (includes the later own-roster trainer assertion).
+
+**Command:** `pnpm e2e:dashboard` (after `pnpm tsx scripts/phase8-fixtures.ts`).
+**Result:** **56 passed, 0 failed**, ~25s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; members `+9194444…`, plan `P8 Gold`,
+branch `P8 Andheri`. Teardown is prefix-scoped and does not delete Phase 6/7
+`+9196666…` / `+9195555…` rows. Widget totals include leftover org data and
+are compared to SQL, not hardcoded historical numbers. No product, schema, or
+harness changes.
+
+**Next E2E phase at the time:** Phase 9 — now Done. See below.
+
+**Phase 9 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase9-verify.ts`,
+`pnpm --filter admin-web e2e:trainers`, fixtures `apps/api/scripts/phase9-fixtures.ts`.
+Purpose: trainer profile create/edit, roster assign/unassign, own-roster
+attendance vs desk register, empty-roster trainer, RBAC on GET `/trainers`.
+Expected **47** checks.
+
+**Command:** `pnpm e2e:trainers` (after `pnpm tsx scripts/phase9-fixtures.ts`).
+**Result:** **47 passed, 0 failed**, ~38s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; members `+9193333…` (Kiran Assigned,
+Zoya Outsider). Coach profile deleted so form-create stays repeatable. Does
+not delete Phase 6/7/8 prefixes. No product, schema, or harness changes.
+
+**Next E2E phase at the time:** Phase 10 — now Done. See below.
+
+**Phase 10 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase10-verify.ts`,
+`pnpm --filter admin-web e2e:leads`, fixtures `apps/api/scripts/phase10-fixtures.ts`.
+Purpose: lead create, skip-forward, illegal backward PATCH, LOST recovery,
+convert-to-member + freeze, RBAC. Expected **42** checks.
+
+**Command:** `pnpm e2e:leads` (after `pnpm tsx scripts/phase10-fixtures.ts`).
+**Result:** **42 passed, 0 failed**, ~23s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; leads `+9192222…`. Teardown is
+prefix-scoped and does not delete Phase 6–9 prefixes. No product, schema, or
+harness changes.
+
+**Next E2E phase at the time:** Phase 11 — now Done. See below.
+
+**Phase 11 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase11-verify.ts`,
+`pnpm --filter admin-web e2e:expenses`, fixtures `apps/api/scripts/phase11-fixtures.ts`.
+Purpose: expense live-book CRUD (create/edit/hard-delete), org-wide P&L
+matches `SUM(payments) − SUM(expenses)` for the gym-local month, Main-branch
+P&L drops org-level SOFTWARE and P8 Andheri utilities (1.21.1), RBAC
+(`expenses.manage` vs `reports.view`). Expected **36** checks.
+
+**Command:** `pnpm e2e:expenses` (after `pnpm tsx scripts/phase11-fixtures.ts`).
+**Result:** **36 passed, 0 failed**, ~23s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; expenses namespaced on payee `P11 …`.
+Teardown deletes only that payee prefix and does not remove Phase 3–10
+members, leads, or payments. P&L totals include leftover org data and are
+compared to SQL, not hardcoded historical numbers. No product, schema, or
+harness changes.
+
+**Next E2E phase at the time:** Phase 12 — now Done. See below.
+
+**Phase 12 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase12-verify.ts`,
+`pnpm --filter admin-web e2e:notifications`, fixtures `apps/api/scripts/phase12-fixtures.ts`.
+Purpose: nightly scan queues BullMQ jobs; worker marks SENT in MySQL
+(Expiry Soon + Owing Balance); Frozen Hold / Far Away / cancelled invoice
+excluded; second same-day scan skipped (1.22.1); RBAC
+`notifications.manage` is OWNER/ADMIN. Plan originally documented 23
+checks; this re-run executed **24** (includes the later MySQL SENT wait).
+
+**Command:** `pnpm e2e:notifications` (after Redis + `pnpm tsx scripts/phase12-fixtures.ts`).
+**Result:** **24 passed, 0 failed**, ~18s. No skipped checks.
+**Isolation:** Demo Gym staff sessions; members `+9190001…`, plan
+`P12 Notify Gold`. Teardown deletes only that prefix (logs, invoices,
+memberships, members) and does not remove Phase 3–11 data. Redis was
+already up; no product, schema, or harness changes.
+
+**Next E2E phase at the time:** Phase 13 — now Done. See below.
+
+**Phase 13 — Done** (2026-09-27 re-run)
+
+Existing harness (not redesigned): `apps/admin-web/e2e/phase13-verify.ts`,
+`pnpm --filter admin-web e2e:member`, fixtures `apps/api/scripts/phase13-fixtures.ts`.
+Purpose: Alice Portal signs in on Flutter Web; home is Alice not Bob;
+membership/payments match MySQL; reload restores session (1.23.4); API
+self-scope (Alice ₹500, Bob outstanding ₹9999). Expected **20** checks.
+
+**Command:** `E2E_HEADFUL=1 E2E_APP_URL=http://127.0.0.1:8080 pnpm e2e:member`
+(after `pnpm tsx scripts/phase13-fixtures.ts` and
+`flutter run -d web-server --web-port 8080`).
+**Result:** **20 passed, 0 failed**, ~18s. No skipped checks.
+**Isolation:** Demo Gym; members `+9191111…` (Alice / Bob), plan
+`P13 Portal Gold`. Teardown deletes only that prefix. CORS already
+included `:8080`. Redis not required.
+**Harness:** CanvasKit `innerText` on Home omits tiles painted after
+GET `/me` (visual ₹1500.00 is present; membership `innerText` does
+include amounts). Outstanding is asserted from MySQL; reload is from
+Home so “Alice” is the restore proof. No product or schema changes.
+
+Phase 13 is the last required Phase K E2E (README 4k; K closeout was
+6→13). Super Admin headed Chrome was already done in Phase 15
+(`phase15-verify`, 40/0). No further K slice is listed.
+
+**Next phase:** **Phase L** (staging / production deploy). Do not start
+without approval. Phase K is Done.
+
 ---
 
 ## 8. Explicit Don'ts (carried over from original spec, unchanged)
@@ -3646,6 +4280,84 @@ an open question (10.22).
 
 ## 9. Decision Changes Log
 
+- **2026-09-27:** SaaS follow-on Phase I — Super Admin organization detail consumes the
+  Phase H usage API. Entitlements use catalog labels. Usage is detail-only (no list
+  N+1). Over-limit and unavailable metrics are informational. Create/plan/credential
+  flows were not redesigned.
+- **2026-09-26:** SaaS follow-on Phase H — platform `GET /organizations/:id/usage` reports
+  live counts against current-plan entitlements. BOOLEAN trainer/lead flags are not turned
+  into numeric caps. Deferred storage/SMS/WhatsApp/online-payments metrics are unavailable
+  (`NO_CONSUMPTION_PATH`), not zero. Over-limit after downgrade is report-only. No tenant
+  usage endpoint, usage table, or Redis counters.
+- **2026-09-26:** SaaS follow-on Phase G — remaining live entitlements are enforced only
+  where a real backend operation exists: `trainers` on trainer-profile create,
+  `reports.enabled` on report reads, `notifications.enabled` before queue/send.
+  WhatsApp, tenant online payments, storage, and monthly SMS stay deferred — no
+  provider/upload/usage path was invented.
+- **2026-09-26:** SaaS follow-on Phase F — Super Admin subscription PATCH validates
+  org/plan/status/interval/period server-side. `priceSnapshot` is rewritten only when
+  plan or billing interval actually changes. Catalog price edits do not rewrite existing
+  snapshots. No-op PATCH skips DB write and audit. Confirm UI shows current vs new plus
+  live entitlement impact. Manual billing only; no PSP/proration.
+- **2026-09-26:** SaaS follow-on Phase E — Super Admin can generate a temporary OWNER
+  password on the server or still type one. Generated plaintext is returned only on the
+  create response and shown once in Super Admin UI state. It is never persisted, logged,
+  audited, or shown on organization detail. Manual passwords are not echoed by the API.
+- **2026-09-26:** SaaS follow-on Phase D — Super Admin organization create assigns a SaaS
+  plan in the same `provisionOrganization` transaction. Public signup remains Trial-only.
+  Client prices/entitlements are ignored. Inactive plans cannot be assigned. Owner still
+  types a password (Phase E not started).
+- **2026-09-26:** SaaS follow-on Phase C — Super Admin plan catalog is editable. Cards stay
+  (no plans table). Entitlement editor is typed (limit / unlimited / enabled / disabled)
+  with human labels; canonical keys are unchanged. Edit confirmation states the live-plan
+  impact and that `priceSnapshot` is not rewritten. Archive/activate stay confirmation
+  actions. Organization create still has no plan picker (Phase D).
+- **2026-09-25:** SaaS follow-on Phase B — catalog is operator-owned. `syncSaasPlanCatalog`
+  inserts missing Trial/Starter/Growth rows and missing entitlement keys only; it does not
+  overwrite name, prices, `isActive`, or entitlement values. Plan CRUD is platform-JWT
+  `/platform/plans`. Lifecycle stays `isActive` (archive = deactivate). Entitlement edits
+  apply live to every org on that plan; `organization_subscriptions.priceSnapshot` is
+  unchanged by catalog price edits. Inactive plans cannot be newly assigned
+  (`SAAS_PLAN_INACTIVE`). No plan-version table. Super Admin UI editor is Phase C.
+- **2026-09-25:** 1.23.2 portal enable is now a staff action, not fixtures-only.
+  `POST /organizations/:organizationId/members/:memberId/portal-password`
+  (`members.update`). Optional body password; omitted → readable 10-char temp
+  that matches staff reset strength. Hash saved, live `member_refresh_tokens`
+  revoked. Plaintext temp password is returned on this POST once and never
+  logged. `portalEnabled` added to Member GET/list/`toResponse`; `passwordHash`
+  still never serialized. Gym Admin UI Slice B: member detail badge +
+  Enable/Reset dialog, one-time password panel, optional Portal list column.
+  Slice C: `POST /auth/member/change-password` (member JWT). Wrong current →
+  401 `INVALID_CREDENTIALS`. Success revokes all live member refresh families
+  and re-issues a session. Flutter Profile: current / new / confirm; `sign-out`
+  and `theme-toggle` keys kept.
+- **2026-09-24:** Member portal UI Section **12 Done** (slices A–F). Visual
+  restyle only — no new `/me` endpoints, no 1.14 rewrite. Both themes this
+  pass; persist `vedafit.member.theme`. Bottom `NavigationBar` (rail gone).
+  Local primitives, then login/home/membership/attendance/payments/profile.
+  `flutter analyze` 0 errors (2 pre-existing infos in `api_client.dart`).
+  `flutter test` **31/0** (rail absent at 375; theme persist; Alice numbers
+  four-way; Bob’s ₹111 CASH and same-day visit absent from Alice’s tree).
+  Fresh LAN APK against the **confirmed** host IP (not last week’s bake).
+- **2026-09-23:** Member portal UI Section **12** started. Slice A (tokens +
+  theme mode) only. `vedafit.member.theme` via `shared_preferences`. Light and
+  dark this pass; default dark; no `prefers-color-scheme`. Lime still fill-only
+  in light. Slices B–F not started.
+- **2026-09-15:** Super Admin responsive retrofit **SA-R Done.** Ported `useSidebarNav`
+  (`vedafit.platform.sidebarCollapsed`), `DataTable`, `SELECT_CONTROL_CLASS`. Drawer at
+  375; md+ collapse persists. One table wrapped (`organizations-table`). Phase 15
+  `selectByLabel` now uses `following::select[1]` so assign-plan survived the chevron
+  wrap. `pnpm e2e:responsive` **42/0**; Phase 15 **40/0**; `e2e:slice-b` **33/0**;
+  `e2e:theme` **47/0**. RTL **52/0**; typecheck clean. Admin-web Slices 3/5 still queued.
+- **2026-09-15:** Super Admin responsive retrofit (**10.22**) — **gate answered yes,
+  plan written, not implemented.** Slice B 375 screenshots confirmed the desktop-first
+  shell is actually broken on a phone (stacked rail + clipped org table), not a theme
+  bug. Operators are expected to use Super Admin on a phone at least enough to list
+  orgs / open a gym / assign a plan. Implementation waits on this plan being accepted.
+  One slice (**SA-R**), not admin-web’s Wave 1/2 split — Super Admin has **one** table.
+  Primitives are **ported** (`DataTable`, `SELECT_CONTROL_CLASS`, `useSidebarNav`), not
+  extracted to `packages/ui` and not imported across Vite apps. Storage key
+  `vedafit.platform.sidebarCollapsed`. See Section 10.22.
 - **2026-09-15:** Locked Decision **1.14 amended, not rewritten.** Dark palette hex values
   are unchanged. Light mode is an **additive** `data-theme` mapping of the same brand
   through semantic CSS variables (duplicated in both apps; no `packages/ui`). Dark remains
@@ -4583,6 +5295,7 @@ Do not add `/api/v1/saas` as a second prefix unless it is an alias; keep SaaS un
 | GET | `/platform/me` | any operator | profile |
 | GET | `/platform/organizations` | any | paginated list (1.9 params) + subscription status |
 | GET | `/platform/organizations/:organizationId` | any | org + OWNER email + subscription + entitlement snapshot |
+| GET | `/platform/organizations/:organizationId/usage` | any | Phase H live usage / limits / feature flags |
 | POST | `/platform/organizations` | any | same as signup, actor = operator |
 | PATCH | `/platform/organizations/:organizationId/status` | any | `ACTIVE` \| `SUSPENDED` only |
 | PATCH | `/platform/organizations/:organizationId/subscription` | any | assign `planId`, set status TRIAL/ACTIVE/PAST_DUE/CANCELLED, period end |
@@ -4849,43 +5562,180 @@ Not “it compiles.” Phase 15 is Done when **all** of these are true. **Checke
 8. **Starting Phase 15 while Phase 14 DoD is open** — allowed (additive) but **not automatic**.
    Production API and iOS stay their own later work. Android force-stop session restore is
    still a Phase 14 checkbox, not a Phase 15 item.
-9. **Super Admin on a phone** — `apps/super-admin` is a backoffice fleet tool (list orgs,
-   suspend, assign plan). If operators only ever use it at a desk, the responsive retrofit
-   can stay deferred indefinitely. Do not spend the Wave 1/2 copy without answering this.
+9. **Super Admin on a phone** — **answered yes, 2026-09-15.** Slice B 375 screenshots
+   showed a stacked rail and a clipped org table. Operators need list / detail / assign
+   plan on a phone. The retrofit is Section **10.22** (plan written; not started until
+   accepted). Admin-web Slices 3/5 stay a separate queue.
 
-### 10.22 Queued UI (design only — do not start)
+### 10.22 Super Admin responsive retrofit (**SA-R Done 2026-09-15**)
 
-Written 2026-09-14 after Phase 15 close-out. **Not started.** Same pattern as the admin-web
-responsive pass: plan first, then an explicit go.
+Implemented as one slice after this plan was accepted. Proof: `pnpm e2e:responsive`
+**42/0** (375/768/1440; topbar non-intersection; org table sticky + fade; select
+`padding-right` 40px); Phase 15 **40/0** (assign-plan xpath updated in the same slice);
+`e2e:slice-b` **33/0**; `e2e:theme` **47/0**; `pnpm --filter super-admin test` **52/0**;
+typecheck clean.
 
-**Gate (answer before any Super Admin UI work):** is Super Admin expected on a phone at all?
-A yes means copy admin-web’s already-shipped primitives (`DataTable`, `SELECT_CONTROL_CLASS`
-/ `form-control`, collapsible `AppShell`) onto `:5174` so native `<select>` / raw tables /
-a non-collapsing rail are not the phone experience. A no (desk-only backoffice) is a
-legitimate reason to leave Super Admin at desktop indefinitely and pick admin-web Slices
-3/5 (dashboard type scale, form density) as polish on a surface that already works on
-mobile.
+Delta vs a mechanical port: `border-separate` on the table (collapse was preventing
+sticky from actually pinning), first-column `max-w-[14rem]` so long e2e slugs do not
+eat the 375 viewport, `overflow-x-clip` on `main`, opaque `bg-bg` on the pinned td.
 
-**If the gate is yes — Super Admin retrofit (preferred order only after that yes):**
+The plan below is the accepted scope. Do not reopen as Wave 1/2.
 
-| Slice | Scope | Proof |
-|---|---|---|
-| SA-1 | Shell: collapsible sidebar + drawer at ~375, persist collapse at 768/1440. Reuse admin-web `useSidebarNav` pattern, do not invent a second rail. | Super Admin e2e still 40/0; add a narrow-viewport smoke (login + org list visible, no horizontal page scroll). |
-| SA-2 | Lists: wrap org / plan tables in the shared `DataTable` (sticky first column, overflow fade). Do not rewrite rows into cards. | Existing `data-testid`s stay on the `<table>`; headed list/suspend/assign still match MySQL. |
-| SA-3 | Forms + filters: `SELECT_CONTROL_CLASS` / `TextField` already used in admin-web; Super Admin `Select` must not stay a naked native control. | Create-org + assign-plan still work in the existing Super Admin harness. |
+Written **2026-09-15** after Section 11 closed. Replaces the 2026-09-14 “design only”
+placeholder. **Gate (10.21.9) answered yes:** Slice B 375 screenshots showed a stacked
+horizontal rail plus a clipped org table. This is a confirmed layout gap, not a theme
+bug, and not speculative “maybe they’ll use a phone.”
 
-**If the gate is no — admin-web Slices 3/5 instead:**
+Admin-web Slices **3/5** (dashboard type scale, form density) stay queued and are **not**
+this work.
 
-| Slice | Scope | Proof |
-|---|---|---|
-| AW-3 | Dashboard type scale (widget values / headings at 375 without overflow). | `pnpm e2e:dashboard` still matches SQL; visual check at 375. |
-| AW-5 | Form density (stacked labels, no clipped primary actions on member/plan/trainer create). | Existing phase 4–6 / 9 harnesses still green. |
+#### 10.22.1 What is actually broken (from Slice B 375, not guessed)
 
-**Do not:** start PSP, OpenAPI, Phase 16, or Super Admin `DataTable` imports until the
-gate is answered. Do not treat this subsection as approval to code.
+Today’s Super Admin shell is `flex-col md:flex-row` with the sidebar always in flow:
 
-End of Section 10. Phase 15 is **Done**. Do not start “later” items or Phase 16
-without explicit approval.
+- At **375**, the rail is a full-width strip *above* the topbar (brand row + horizontal
+  nav), then the topbar (name + theme toggle + Sign out, `justify-end`, no `min-w-0`,
+  no truncate). Page content starts below both. The org table is a raw
+  `overflow-x-auto` wrapper with no sticky first column and no overflow fade — Period
+  end clips off-screen with no affordance.
+- At **768**, the 240px rail stays in flow; filter `<select>`s truncate; the table
+  still has a native scrollbar and no pin.
+- At **1440** the desktop-first layout is fine. Phase 15 (`40/0`) never set a narrow
+  viewport, so it could not have caught this.
+
+Login (`max-w-sm`, no shell) is already usable at 375. Do not restyle it except to
+keep it in the screenshot set.
+
+#### 10.22.2 Full screen inventory (not “2–3 screens”)
+
+Authenticated routes in `apps/super-admin/src/app/router.tsx`:
+
+| Route | Page | Table? | Native `<select>`? | Retrofit |
+|---|---|---|---|---|
+| `/` | Dashboard — four stat cards | no | no | Shell + topbar only. Grid already `sm:2` / `xl:4`. |
+| `/organizations` | Organizations list | **yes** — `data-testid="organizations-table"` (4 columns: Organization, Status, Subscription, Period end) | **yes** — Status, Sort by, Order, Page size (all via `Select`) | **DataTable wrap** + Select chrome + filter bar `min-w-0` |
+| `/organizations/new` | New organization | no | no | Shell + topbar. Stacked `TextField`s. Wrap Create/Cancel (`flex-wrap`) so the primary action is not clipped. |
+| `/organizations/:id` | Org detail — identity card, subscription card, assign-plan form, entitlements `<ul>` | no (entitlements are a list, not a table) | **yes** — SaaS plan, Subscription status | Select chrome. If a long email overflows a `flex justify-between` row at 375, truncate the `dd` — do not retune type scale (that is AW-3). |
+| `/plans` | SaaS plans — card grid `lg:grid-cols-3` | **no** | no | Shell + topbar only. Do **not** invent a plans table. SA-2’s original “org / plan tables” assumed a table that does not exist. |
+
+Plus `/login` (no AppShell). **One table in the whole app.** That is why this is not
+an admin-web Wave 1/2 split.
+
+#### 10.22.3 Share vs port (practical, given the repo)
+
+There is **no shared UI package**. `packages/` is `shared-config` only. Section 11
+locked “do not extract `packages/ui`” as a third project.
+
+| Approach | Verdict |
+|---|---|
+| Import `DataTable` / `form-control` / `useSidebarNav` from `apps/admin-web/src` | **No.** Couples two Vite apps, two tsconfigs, and admin-web session types. |
+| Extract `packages/ui` now | **No.** Bigger than this retrofit; contradicts Section 11. |
+| Port the files into `apps/super-admin/src` | **Yes.** Same as today’s duplicated `Button` / `TextField` / `Select` / tokens. |
+
+Copy, do not rewrite:
+
+- `useSidebarNav.ts` → Super Admin copy. Only intentional delta: storage key
+  **`vedafit.platform.sidebarCollapsed`** (`"1"` / `"0"`), sibling of
+  `vedafit.platform.theme`. Keep `MD_UP_QUERY = "(min-width: 768px)"`, persist
+  collapse on md+ only, mobile drawer session-only, body scroll lock, Escape to
+  close. Do not invent a second rail.
+- `DataTable.tsx` → Super Admin copy. Sticky first column, right-edge fade,
+  `data-testid="data-table"` / `data-table-scroll` / `data-table-fade`. Existing
+  `<table data-testid="organizations-table">` stays the child. Drop the outer
+  `overflow-x-auto rounded-lg border` on the list page so the wrapper is not
+  double-bordered.
+- `form-control.tsx` (`SELECT_CONTROL_CLASS` + `SelectChevron`) → Super Admin copy.
+  Point `Select.tsx` at it the same way admin-web’s `Select` does (`appearance-none`,
+  `pr-10`, custom chevron). `color-scheme` already follows `data-theme`.
+
+Do not copy `nav-icons.tsx`. Super Admin has three destinations. Put three small
+inline SVGs in `Sidebar.tsx` (dashboard / building / stacked layers) so collapsed
+md+ is icon-only with `title` + `sr-only`, matching admin-web’s `showLabels =
+!mdUp || !collapsed`. Do not keep the current in-flow horizontal chip nav.
+
+#### 10.22.4 Shell + topbar (the 375 collision)
+
+**Shell.** Mirror admin-web `AppShell`: `useSidebarNav`, fixed drawer `< md` with
+`data-testid="sidebar-backdrop"`, hamburger `data-testid="sidebar-open"` in the
+topbar, collapse `data-testid="sidebar-toggle"` on the rail at md+, `main` always
+full viewport width at 375 (sidebar out of flow). Keep `data-testid="app-shell"`,
+`app-sidebar`, `app-topbar`. Active nav stays the Section 11 choice:
+`bg-accent/15 text-accent-text` (not a second active style).
+
+**Topbar — yes, the theme toggle creates the same collision admin-web already
+fixed.** Super Admin has no branch picker, so the row is simpler, but Slice B 375
+already shows name + “Platform operator” + toggle + Sign out packed into
+`justify-end` with no truncate. After the hamburger lands on the left, that row
+is four controls plus a two-line identity block.
+
+Port the admin-web truncation pattern:
+
+- `justify-between gap-2 px-4 md:gap-3 md:px-6`, both clusters `min-w-0`
+- Hamburger `md:hidden`, `aria-controls="app-sidebar"`
+- Identity: `data-testid="topbar-user-name"` + `truncate`; hide “Platform operator”
+  below `sm` (`hidden sm:block`) the same way admin-web hides the role
+- Theme toggle and Sign out `shrink-0`
+- Headed overlap checks: hamburger × name × theme-toggle × Sign out at 375 (no
+  pair of bounding boxes overlaps)
+
+#### 10.22.5 Slice shape — one pass, ordered internally
+
+Admin-web needed Wave 1/2 because it had ~10 list tables. Super Admin has one.
+Splitting SA-1 / SA-2 / SA-3 into separately reviewed waves would add ceremony
+without a review gate: a drawer that still clips the only table is not a
+finished 375, and a DataTable on a page still eaten by an in-flow rail is not
+either.
+
+**One slice: SA-R.** Internal order (so a mid-slice failure is diagnosable),
+one review, one headed harness:
+
+1. Port `useSidebarNav` + rewrite Sidebar / AppShell / Topbar (10.22.4).
+2. Port `form-control` and restyle `Select` (covers all six selects).
+3. Port `DataTable` and wrap **only** `organizations-table`.
+4. RTL + `e2e:responsive` + re-run Phase 15 / Slice B / Slice C.
+
+Original SA-1/2/3 remain this sequence, not separately-shipped slices.
+
+**Harness landmine (must fix in the same slice):** Phase 15
+`selectByLabel` uses `label/following-sibling::select`. Admin-web’s Select wraps
+the `<select>` in a `relative` div, so that xpath **misses** “SaaS plan” after
+the chrome port. Change the helper to `label/following::select[1]` (or
+`label/..//select`). `fillByLabel` (`following-sibling::input`) stays valid —
+`TextField` is still label-then-input. RTL `getByLabelText(/saas plan/i)` is
+unaffected.
+
+#### 10.22.6 Proof
+
+| Check | Bar |
+|---|---|
+| RTL | `pnpm --filter super-admin test` green. Extend `AppShell.test.tsx` with the admin-web cases that apply (default expanded, collapse persists `vedafit.platform.sidebarCollapsed`, drawer + backdrop + Escape, topbar truncate / subtitle hidden when `mdUp` is mocked false). No branch-picker tests — Super Admin has none. Copy `DataTable.test.tsx` against `organizations-table`. |
+| Typecheck | `pnpm --filter super-admin typecheck` clean. |
+| New headed harness | `apps/super-admin/e2e/responsive-verify.ts` + `pnpm e2e:responsive`. Viewports **375 / 768 / 1440**. Dark default (matches Phase 15). |
+| 375 shell | Sidebar `position:fixed`; `main` width ≥ viewport − 32; **no document horizontal overflow**; hamburger starts `aria-expanded=false`; opening the drawer does not shrink `main`; backdrop click and Organizations nav click both close it. |
+| 375 topbar | No bounding-box overlap between hamburger, `topbar-user-name`, `theme-toggle`, `sign-out`. |
+| 375 table | `organizations-table` scrollWidth > clientWidth; first column `position:sticky`; fade present at rest, gone after scroll to end; Organization column still visible while Period end is revealed. |
+| 375 selects | Filter/assign `padding-right` ≥ 32px (chevron room). |
+| 768 / 1440 | Collapse toggle visible; collapsing persists across reload; main grows; org list + plans still usable. |
+| Screenshots | Login, dashboard, orgs, org detail, plans, new-org at 375/768/1440 (dark). Plus **one** 375 light topbar/orgs shot so the extra toggle is overlap-checked in light — do not redo Slice B’s full theme matrix. |
+| Regressions | Phase 15 `pnpm --filter super-admin e2e` still **40/0** (create / suspend / assign still match MySQL; `data-testid`s unchanged). `e2e:slice-b` still green (theme toggle still in the topbar; keys unchanged). `pnpm --filter admin-web e2e:theme` still green (Slice C; both apps up). |
+
+#### 10.22.7 Out of scope
+
+- `packages/ui`
+- Admin-web Slices 3/5
+- Rewriting plan cards or entitlements into tables
+- Member app / PSP / OpenAPI / Phase 16
+- Changing default theme or storage key names other than adding
+  `vedafit.platform.sidebarCollapsed`
+- A Super Admin `DataTable` `fit` variant unless headed 375 shows the four-column
+  org table does not actually overflow (if it does not overflow at 375 after the
+  drawer, still wrap it — the pin/fade must exist for 768)
+
+**Do not start coding until this plan is accepted.** **Accepted and shipped 2026-09-15
+(SA-R).**
+
+End of Section 10. Phase 15 is **Done**. Admin-web Slices 3/5 remain queued.
+Do not start “later” items or Phase 16 without explicit approval.
 
 ---
 
@@ -5059,12 +5909,11 @@ Do **not** one giant pass across both apps. Slices 0 → A → B → C shipped i
 ### 11.6 Out of scope / flags noticed in this audit
 
 - **Member Flutter app:** out. Different renderer; 1.14 there is a Dart `theme.dart`.
-- **Admin-web Slices 3/5** (dashboard type scale, form density at 375): still queued (10.22).
+- **Admin-web Slices 3/5** (dashboard type scale, form density at 375): still queued.
   This work does not retune font sizes by breakpoint except where a contrast class sits on
   the same node. “Typography according to screen size” is that other track.
-- **Super Admin responsive (10.22):** still gated on “is this used on a phone?”. Light mode
-  on a non-collapsing rail at 375 will look cramped; do not pretend Slice B is a mobile
-  retrofit.
+- **Super Admin responsive (10.22):** **SA-R Done 2026-09-15.** Drawer + collapse +
+  DataTable on the org list. Admin-web Slices 3/5 remain queued.
 - **e2e will go red** if light becomes default or if phase 3 asserts `BRAND_RGB.white` after
   components switch tokens without keeping dark values identical.
 - **`text-amber-300` / `text-red-300`:** Slice A maps these to `--color-warning` / `--color-danger`.
@@ -5075,6 +5924,101 @@ Do **not** one giant pass across both apps. Slices 0 → A → B → C shipped i
   package would be a third project.
 - **Favicon / `theme-color` meta:** not set per theme today; optional in A (`<meta name="theme-color">` from the bg token).
 
-**Section 11 is Done.** Super Admin responsive (10.22 SA-1/2/3 — collapsible shell, DataTable,
-shared select chrome) is the logical next UI pass; it is still gated and was not started here.
+**Section 11 is Done.** Super Admin responsive is Section **10.22** (**SA-R Done**
+2026-09-15). Admin-web Slices 3/5 remain queued.
+
+---
+
+## 12. Member portal UI (Flutter)
+
+Visual restyle of `apps/member-app` to match dashboard tokens and a phone-first
+shell. **Not** a workout app. No new `/me` endpoints. Plan approved 2026-09-23.
+
+**Status:** **Done 2026-09-24.** Slices A–F. Locked Decision **1.14** is
+unchanged; tokens copy Section 11.
+
+### 12.1 Locked for this work
+
+- Both themes this pass. Default **dark**. No `MediaQuery.platformBrightness`.
+- Persist `vedafit.member.theme` (`light` | `dark`) in `shared_preferences`.
+- Tokens copy Section 11. Lime `#C9FF1F` is fill-only in light. Light heading
+  `#141414` on cream `#FEF9F5`. Light muted `#5C5854`. Light accent-text `#3D4D00`.
+- Dark muted is solid `#C9C4BF` (Slice 0), not `greenMuted` on every subtitle.
+- No `packages/ui`. No workouts / calories / steps / stock photos.
+
+### 12.2 Slices
+
+- **A — tokens + theme mode (Done 2026-09-23).** `VfColors` ThemeExtension,
+  `buildMemberTheme` / `buildMemberLightTheme`, `memberThemeProvider`, toggle on
+  login + Profile (`Key('theme-toggle')`). Screens read `VfColors.of(context)`.
+  Proof: `flutter test` **5/0**. Toggle writes `vedafit.member.theme` and a fresh
+  `ProviderScope` restores light. Light login heading **#141414** on cream
+  **#FEF9F5**. No `Text` on login uses lime. `flutter analyze` 2 pre-existing
+  infos in `api_client.dart` only.
+- **B — shell (Done 2026-09-23).** Drop `NavigationRail` and AppBar Sign out.
+  Five-destination `NavigationBar`. Sign out on Profile only. Home AppBar is
+  greeting + gym name (`home-name`); other tabs use the short title. Proof:
+  `flutter test` **7/0**. At 375 width, `NavigationRail` is absent and
+  `NavigationBar` is 375 wide. Tabs still `context.go` `/membership`,
+  `/attendance`, `/payments`, `/profile`, `/`. `login-heading` still resolves.
+- **C — primitives (Done 2026-09-23).** Local `lib/widgets/`: `VfCard`,
+  `VfStatusChip` (admin `StatusBadge` tones), `VfStatTile`, `VfDaysBar`
+  (`daysRemaining` / start→end, no new API field), `VfEmpty` / `VfError` /
+  `VfLoading`. Proof: `flutter test` **15/0**. Light ACTIVE chip is
+  `#3D4D00`, not lime. Days bar 5/10 = 0.5; fill lime, label muted. Error
+  uses danger, not `Colors.redAccent`. Login/home screens not restyled.
+- **D — login + home (Done 2026-09-24).** Full-bleed brand block (lime mark +
+  Vedafit + `login-heading` Member portal, no photos). Form in `VfCard` with
+  Alice prefills and a full-width lime Sign in. Home: `Hello {first} {last}`,
+  org · branch muted, membership hero (`VfStatusChip` + `VfDaysBar` + end date),
+  outstanding `VfStatTile` → `/payments`. Empty still “No live membership”.
+  Proof: `flutter test` **19/0**. Light ACTIVE chip `#3D4D00`, `isNot(Brand.green)`.
+  Live Alice 2026-09-24: MySQL + `GET /me` + admin member/membership screens all
+  **P13 Portal Gold · ACTIVE · 10 days · ends 2026-10-02 · outstanding ₹1500.00**.
+  Membership / attendance / payments / profile still use `_Card`.
+- **E — remaining screens (Done 2026-09-24).** Membership: one `VfCard` per
+  term (plan, chip, start→end, days left, ₹price). Attendance: month header +
+  7-column strip with lime dots on `attendanceDate`s; list is Covered visit /
+  Override · reason. Payments: amount-first, method + chip, refund flag,
+  `formatPaidAt` (not ISO). Profile: initials avatar, name / phone / email /
+  gym / branch, theme toggle, Sign out. `_Card` removed. Proof: `flutter test`
+  **31/0**. Light SUCCESS/ACTIVE chips `#3D4D00`, `isNot(Brand.green)`. Lime
+  is the 22 Sep dot fill, not the day number. Live Alice 2026-09-24 four-way:
+  MySQL + `GET /me/*` + admin screens + widget tests all **visit 2026-09-22
+  Covered**, **₹500.00 UPI SUCCESS 22 Sep 2026**, **Alice Portal /
+  +919111100001 / — / Demo Gym / Main Branch**. Bob’s **₹111 CASH** and his
+  same-day visit stay off Alice’s lists.
+- **F — analyze / tests / LAN APK (Done 2026-09-24).** `flutter analyze` 0
+  errors (2 pre-existing infos in `api_client.dart` only). `flutter test`
+  **31/0**. Existing widget gates still hold: 375-width `NavigationRail`
+  `findsNothing` and `NavigationBar` is 375 wide; `vedafit.member.theme`
+  persists across a fresh `ProviderScope`. Fresh signed fat APK baked against
+  the **confirmed** LAN IP (not reused from an earlier DHCP address). See 12.3.
+
+### 12.3 Proof
+
+| Check | Bar |
+|---|---|
+| Analyze | `flutter analyze` — 0 errors. 2 pre-existing infos in `api_client.dart` (`prefer_initializing_formals`). |
+| Tests | `flutter test` **31/0**. |
+| Shell | At 375, `NavigationRail` `findsNothing`; `NavigationBar` width 375; five `context.go` paths unchanged. |
+| Theme | Toggle writes `vedafit.member.theme`; a fresh `ProviderScope` restores light. Light login heading `#141414` on cream `#FEF9F5`. No login `Text` uses lime. |
+| Status chips | Light ACTIVE / SUCCESS text `#3D4D00`, `isNot(Brand.green)`. Lime is fill only (Sign in, days-bar, attendance dots). |
+| Alice numbers | Home / membership / attendance / payments / profile match MySQL + `GET /me/*` + admin dashboard (2026-09-24). |
+| Self-scope | Bob’s ₹111 CASH and same-day `2026-09-22` visit exist in MySQL and admin lists; absent from Alice’s `/me/*` and from the widget tree. |
+| APK | Signed fat release via `tool/with-host-gradle.sh build apk --release --dart-define=API_URL=http://10.244.232.169:4000/api/v1`. `apksigner` v2, CN=Vedafit local upload. Copy: `outputs/vedafit-member-lan-10.244.232.169-release.apk`. `/mnt/user-data/outputs` unwritable (root `/mnt`) — repo `outputs/` is the fallback, same as Phase 14. LAN IP was read from `ip route` on 2026-09-24, not copied from the previous bake. |
+
+Host LAN IP on this bake: **`10.244.232.169`**. Same address as the 2026-09-23 pre-restyle APK, confirmed before rebuild. That older file is the pre-Section-12 UI and must not be sideloaded as this restyle.
+
+### 12.4 Out of scope
+
+- Workout catalog, calories, steps, “Start workout”, stock photos
+- New `/me` endpoints, paying invoices from the app, QR check-in
+- `packages/ui`
+- iOS / TestFlight (still blocked on Linux)
+- Production API / HTTPS (Phase 14 DoD still open)
+- Rewriting Locked Decision 1.14
+
+**Section 12 is Done.** Phase 14 remains In progress (no production host, no iOS).
+ Admin-web Slices 3/5 remain queued.
 

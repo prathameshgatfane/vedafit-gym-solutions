@@ -52,7 +52,7 @@ async function fillByLabel(page: Page, label: string, value: string) {
 
 async function selectByLabel(page: Page, label: string, optionText: string) {
   const handle = await page.$(
-    `::-p-xpath(//label[normalize-space()=${sqlString(label)}]/following-sibling::select)`,
+    `::-p-xpath(//label[normalize-space()=${sqlString(label)}]/following::select[1])`,
   );
   if (!handle) throw new Error(`No select for label "${label}"`);
   const value = await handle.evaluate((el, text) => {
@@ -172,8 +172,19 @@ async function main(): Promise<number> {
     await fillByLabel(page, "Organization email", ORG_EMAIL);
     await fillByLabel(page, "Owner name", "E2E Platform Owner");
     await fillByLabel(page, "Owner email", OWNER_EMAIL);
-    await fillByLabel(page, "Owner password", "ChangeMe123!");
+    await page.waitForFunction(
+      () =>
+        Array.from(document.querySelectorAll("select option")).some(
+          (option) => option.textContent?.trim() === "Trial (trial)",
+        ),
+      { timeout: 10_000 },
+    );
+    await selectByLabel(page, "SaaS plan", "Trial (trial)");
     await page.click("[data-testid='create-organization']");
+    await page.waitForSelector("[data-testid='org-credentials-panel']", { timeout: 20_000 });
+    await page.click("[data-testid='credentials-continue']");
+    await page.waitForSelector("[data-testid='confirm-dialog']", { timeout: 5_000 });
+    await page.click("[data-testid='confirm-accept']");
     await page.waitForSelector("[data-testid='org-name']", { timeout: 20_000 });
 
     const createdName = await page.$eval("[data-testid='org-name']", (el) => el.textContent?.trim());

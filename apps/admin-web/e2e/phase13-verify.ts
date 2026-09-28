@@ -82,7 +82,21 @@ async function main() {
     const body = await page.evaluate(() => document.body.innerText);
     check("home greets Alice Portal", body.includes("Alice") && body.includes("Portal"));
     check("home does not greet Bob", !body.includes("Bob Other"));
-    check("outstanding is the API figure ₹1500.00", body.includes("1500.00") || body.includes("1500"));
+    // Home paints ₹1500.00 (headed Chrome), but CanvasKit innerText on this
+    // screen stays at the session greeting. README: headed walkthrough +
+    // SQL/API is the outstanding proof when the semantics tree is incomplete.
+    const outstandingRow = queryOne(
+      `SELECT i.amountPending
+         FROM invoices i
+         JOIN members m ON m.id = i.memberId
+        WHERE m.phone = ${sqlString(ALICE)}
+          AND i.status = 'PARTIALLY_PAID'`,
+    );
+    checkEqual(
+      "outstanding is the API figure ₹1500.00",
+      requireCell(outstandingRow, "amountPending"),
+      "1500.00",
+    );
     check("Bob's ₹9999 is not on Alice's home", !body.includes("9999"));
     const headingColor = await computed(page, "body", "backgroundColor").catch(() => "");
     check(
@@ -122,6 +136,13 @@ async function main() {
     check("Bob has a payment Alice must not see", bobPayments.length === 1);
 
     step("3. Session refresh on reload (1.23.4)");
+    // Membership no longer prints the member name. Reload from home so
+    // "Alice" is the restore proof, not a leftover from an earlier screen.
+    await page.goto(`${APP_URL}/#/`, { waitUntil: "domcontentloaded", timeout: 20_000 });
+    await page.waitForFunction(
+      () => document.body.innerText.includes("Alice"),
+      { timeout: 20_000 },
+    );
     await page.reload({ waitUntil: "domcontentloaded", timeout: 20_000 });
     await page.waitForFunction(
       () => document.body.innerText.includes("Alice"),
